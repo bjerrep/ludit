@@ -1,0 +1,17 @@
+[Unit]
+Description=ludit web
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+Nice=19
+WorkingDirectory=<git root>/web
+# getting ip address : https://superuser.com/a/1102368
+ExecStartPre=/bin/bash -c "/bin/systemctl set-environment ip=$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1)"
+ExecStart=/usr/bin/python -m http.server --bind ${ip} 8100
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

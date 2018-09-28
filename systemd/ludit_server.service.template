@@ -1,0 +1,14 @@
+[Unit]
+Description=ludit server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=<git root>/src
+ExecStart=/usr/bin/python <git root>/src/run_server.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

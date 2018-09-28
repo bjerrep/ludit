@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+
+<meta charset="utf-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="../artwork/ludit.png" />
+
+<script type="text/javascript" src="findserver.js"></script>
+<script type="text/javascript" src="smoothie.js"></script>
+
+    <style>
+        body {
+            font: 16px arial, 'sans-serif' !important;
+        }
+    </style>
+
+<h1>Ludit</h1>
+
+<link rel="stylesheet" href="jquery-treetable-3.2.0/css/screen.css" media="screen" />
+<link rel="stylesheet" href="jquery-treetable-3.2.0/css/jquery.treetable.css" />
+<link rel="stylesheet" href="jquery-treetable-3.2.0/css/jquery.treetable.theme.default.css" />
+<link rel="stylesheet" href="jquery-ui-1.12.1/jquery-ui.min.js">
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+<link rel='stylesheet' id='edd-styles-css'  href='style.css' type='text/css' media='all' />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+<link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Nunito:200,400,700'>
+<link href="iOS-Toggle-Switch-jQuery-mSwitch/css/jquery.mswitch.css" rel="stylesheet">
+
+</head>
+
+<body>
+<div class="tabs">
+	<nav class="tab-list">
+		<a class="tab active" href="#one">Home</a>
+		<a class="tab" href="#two">Kitchen</a>
+		<a class="tab" href="#three">System</a>
+		<a class="tab" href="#four">Twitse</a>		
+	</nav>
+
+	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+	
+	<div id="one" class="tab-content show">
+	
+		<h2>Kitchen</h2>
+		
+		<div class="standard_kitchen_volume1" id="standard_kitchen_volume1"></div>
+		<!-- <div class="m_switch_kitchen_active1" id="m_switch_kitchen_active1"></div> --->
+
+		<div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
+			<div class="m_settings_cell m_settings_label"></div>
+			<div class="m_settings_cell">
+				<input type="checkbox" id="switcher" class="m_switch_check" value="1" entity="Kitchen">
+			</div>
+		</div></div></div></div></div></div>
+
+
+		<h2>Stereo</h2>  
+		<p>
+			<label for="stereo_value">Volume:</label>
+			<input type="text" id="stereo_value" readonly style="border:0; color:#f6931f; font-weight:bold;">
+		</p>
+		
+		<div id="slider_stereo" style="float:left; width:100%"></div>
+		</br>
+		<div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
+			<div class="m_settings_cell m_settings_label"></div>
+			<div class="m_settings_cell">
+				<input type="checkbox" id="switcher" class="m_switch_check" value="0" entity="Arrgh">
+			</div>
+		</div></div></div></div></div></div>
+
+	</div>
+	
+	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+	
+	<div id="two" class="tab-content">
+	
+		<h2>Kitchen</h2>
+		
+		<div class="standard_kitchen_volume2" id="standard_kitchen_volume2"></div>
+		
+		<div class="standard_kitchen_balance1" id="standard_kitchen_balance1"></div>
+		
+		<div class="standard_kitchen_xoverfreq1" id="standard_kitchen_xoverfreq1"></div>
+
+		<div class="radio_kitchen_order1" id="radio_kitchen_order1"></div>
+
+		<div class="standard_kitchen_highlowbalance1" id="standard_kitchen_highlowbalance1"></div>
+		
+		<div class="standard_kitchen_band01" id="standard_kitchen_band01"></div>
+		
+		<div class="standard_kitchen_band11" id="standard_kitchen_band11"></div>
+		
+	</div>
+
+	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+	
+	<div id="three" class="tab-content">
+		<h2>System</h2>
+		<div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
+			<div class="m_settings_cell">
+				<input id="restart_all" name="restart_all" type="submit" value="Restart All"/>
+			</div>
+		</div></div></div></div></div></div>
+
+		<table id="table_metrics">
+			<caption>Monitor metrics</caption>
+			<thead>
+			<tr>
+				<th>Metric</th>
+				<th>Value</th>
+			</tr>
+			</thead>
+		</table>
+	</div>
+	
+	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->	
+	
+	<div id="four" class="tab-content">
+
+		<h2>Twitse</h2>
+		<div id="info"></div>
+		<canvas id="chart" style="width:100%; height:200px"></canvas>
+		
+		<h3>Device list:</h3>
+		<canvas id="channel_box" width="500" height="150"></canvas>
+		<p>
+			<input type="button" value="50us step response" onclick="CommandTransientTest();" >
+		</p>
+		
+		<div id="error"></div>
+	</div>
+
+</div>
+
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+		integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+		crossorigin="anonymous"></script>
+<script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+<script src="jquery-ui-1.12.1/jquery-ui.min.js"></script>
+<script src="iOS-Toggle-Switch-jQuery-mSwitch/js/jquery.mswitch.js"></script>
+<script src="js.js"></script>
+<script src="jquery-treetable-3.2.0/jquery.treetable.js"></script>
+
+<script>
+$("#table_metrics").treetable({ expandable: true });
+</script>
+
+
+<script type="text/javascript">
+	var ws = null;
+	var ws_ludit = null;
+	var server_ip = null;
+	var ludit_saved_configuration = null;
+	var ludit_unsaved_configuration = null;
+	
+	function start(url) {
+		if (window["WebSocket"]) {
+			ws = new WebSocket(url);
+			ws.onmessage = function (e) {
+				console.log(e.data)
+				var obj = JSON.parse(e.data);
+				//var name = obj['name'];
+				//var command = obj['command'];
+			};
+			ws.onclose = function (e) {
+				check();
+			};
+			ws.onopen = function (e) {
+				console.log("monitor websocket connected");
+				//ws.send(JSON.stringify({"command": "get_history"}));
+			};
+		} else {
+			$("#error").text("WebSocket init failed")
+		}
+	}
+
+	
+	var channels = {};
+	var colors = ['orange', 'yellow', 'green', 'blue', 'purple'];
+	var offsets = {}
+	var next_color = 0;
+	var ws = null;
+	var ms_per_pixel = 2000;
+
+	class ChannelInfo {
+		constructor(name, chart, color) {
+			this._name = name;
+			this._chart = chart;
+			this._status = "online";
+			this._color = color;
+			this._lockstate = "unknown";
+			this._loss = 0.0;
+		}
+
+		get timeseries() { return this._chart; }
+		get status() { return this._status; }
+		set status(new_status) { this._status = new_status; }
+		get color() { return this._color; }
+		set lockstate(new_lockstate) { this._lockstate = new_lockstate; }
+		get lockstate() { return this._lockstate; }
+		set loss(new_loss) { this._loss = new_loss; }
+		get loss() { return this._loss; }
+	};
+
+	function update_channel_list() {
+		var c = document.getElementById('channel_box').getContext('2d');
+		var x1 = 30, x2 = 90, x3 = 160, x4 = 280, x5 = 350;
+		var y0 = 30, y = 50;
+		var lineheight = 20;
+		
+		c.fillStyle = "dimgrey";
+		c.fillRect(0, 0, x5 + 100, 150);
+		c.font = 'bold 14px Arial, sans-serif';
+
+		c.fillStyle = "black";
+		c.fillText("Loss %", x4, y0);
+		c.fillText("Offs us", x5, y0);
+		
+		var keys = Object.keys(channels);
+		for (var i = 0; i < keys.length; i++) {
+			var key = keys[i];
+			var channel_info = channels[key];
+			c.fillStyle = channel_info.color;                
+			var yoff = y + (i * lineheight);
+			c.fillText(key, x1, yoff);
+			c.fillText(channel_info.status, x2, yoff);
+			c.fillText(channel_info.lockstate, x3, yoff);
+			c.fillText(parseFloat(channel_info.loss).toFixed(1), x4, yoff);
+			var offset = offsets[key];
+			if (offset != 'undefined') {
+				c.fillText(parseFloat(offset).toFixed(1), x5, yoff);
+			}
+		}
+	}
+
+	function print_responsives() {
+		var chart = document.getElementById("chart");            
+		var graph_width = chart.clientWidth;
+		var minuttes = ms_per_pixel * graph_width / 60000.0;
+		$("#info").text("Timespan : " + minuttes.toFixed(1) + " min")
+	}
+	
+	print_responsives();
+
+	var smoothie_chart = new SmoothieChart({ 
+		responsive: true, millisPerPixel: ms_per_pixel, millisPerLine:60000,
+		interpolation: 'bezier',
+		maxValue: 100, minValue: -100,
+		grid: { verticalSections: 10,} 
+	});
+
+	var chart = document.getElementById("chart");                        
+	smoothie_chart.streamTo(chart);
+
+	update_channel_list();
+	
+	ws_twitse = null;
+	
+	function start_twitse(url) {
+
+		if (window["WebSocket"]) {
+			next_color = 0;
+			ws_twitse = new WebSocket(url);
+			ws_twitse.onmessage = function (e) {
+				var obj = JSON.parse(e.data);
+				var name = obj['name'];
+				var command = obj['command'];
+				
+				var channel_info = channels[name];
+				
+				if (channel_info === undefined) {
+					var time_series = new TimeSeries();
+					var color = colors[next_color++ % 6];
+					smoothie_chart.addTimeSeries(time_series,
+						{ strokeStyle: color, lineWidth: 3 });
+					channel_info = new ChannelInfo(name, time_series, color);
+					channel_info.status = "online";
+					channels[name] = channel_info;
+				}
+				
+				if (command === "lockstateupdate") {
+					channel_info.lockstate = obj['lockstate']
+				}
+				else if (command === "connection_info") {
+					channel_info.loss = obj['loss']
+				}
+				else {
+					var time = obj['time'];
+					var value = obj['value'];
+					
+					var time_series = channel_info.timeseries;
+					time_series.append(parseInt(time), parseFloat(value));
+					
+					offsets[name] = value;
+					update_channel_list();
+				}
+				update_channel_list();
+			};
+			ws_twitse.onclose = function (e) {
+				channels = {};
+				update_channel_list();
+				check();
+			};
+			ws_twitse.onopen = function (e) {
+				ws_twitse.send(JSON.stringify({"command": "get_history"}));
+			};
+		} else {
+			$("#error").text("WebSocket init failed")
+		}
+	}
+	
+	
+	function start_ludit(url) {
+		if (window["WebSocket"]) {
+			ws_ludit = new WebSocket(url);
+			ws_ludit.onmessage = function (e) {
+				console.log(e.data)
+				var obj = JSON.parse(e.data);
+				var command = obj['command'];
+				if (command == "configuration") {
+					ludit_saved_configuration = obj['current_conf'];
+					reload_configuration();
+				}
+			};
+			ws_ludit.onclose = function (e) {
+				check();
+			};
+			ws_ludit.onopen = function (e) {
+				console.log("ludit websocket connected");
+				ludit_send({"command": "get_configuration", "group": "n/a"});
+			};
+		} else {
+			$("#error").text("WebSocket init failed")
+		}
+	}
+	
+	function start_monitor(url) {
+		if (window["WebSocket"]) {
+			ws_monitor = new WebSocket(url);
+			ws_monitor.onmessage = function (e) {
+				console.log(e.data)
+				var obj = JSON.parse(e.data);
+				var command = obj['command'];
+				if (command == "get_cputemperature") {
+					add_metric('temperature', 'cputemperature', obj['from'], obj['result']);
+				}
+				else if (command == "get_ip") {
+					add_metric('network', 'ip', obj['from'], obj['result']);
+				}
+			};
+			ws_monitor.onclose = function (e) {
+				check();
+			};
+			ws_monitor.onopen = function (e) {
+				console.log("ludit monitor connected");
+				monitor_send({"command": "get_cputemperature", "group": "n/a"});
+				monitor_send({"command": "get_ip", "group": "n/a"});
+			};
+		} else {
+			$("#error").text("WebSocket init failed")
+		}
+	}
+	
+	function monitor_metrics_refresh() {
+		monitor_send({"command": "get_cputemperature", "group": "n/a"});
+	}
+	setInterval(monitor_metrics_refresh, 5000);
+	
+	function check() {
+		//if (!ws || !ws_ludit || ws.readyState === WebSocket.CLOSED || ws_ludit.readyState === WebSocket.CLOSED) 
+		if (!ws_ludit || ws_ludit.readyState === WebSocket.CLOSED) 
+		//if (!ws || ws.readyState === WebSocket.CLOSED) 
+		{
+			findserver(45658, "192.168.1.", 100, 130, 50, 5000, function(ip, port)
+			{
+				if (ip != null) {
+					console.log("found websocket at " + ip);
+					//start(ws_url(ip, 45657));
+					start_ludit(ws_url(ip, 45658));
+					start_twitse(ws_url(ip, 12343));
+				}
+				else {
+					console.log("server not found");
+				}
+			});
+		}
+	}
+	
+	if (ws_ludit)
+		check();
+	else
+	{
+		start_ludit(ws_url("ludit", 45658));
+		start_monitor(ws_url("ludit", 45659));
+		start_twitse(ws_url("ludit", 12343));
+	}
+	
+	setInterval(check, 10000);
+
+	function ludit_send(dict) {
+		if (!ws_ludit)
+			return;
+		var jsn = JSON.stringify(dict);
+		ws_ludit.send(jsn);
+	}
+
+	function monitor_send(dict) {
+		if (!ws_monitor)
+			return;
+		var jsn = JSON.stringify(dict);
+		ws_monitor.send(jsn);
+	}
+
+	function twitse_send(dict) {
+		if (!ws_twitse)
+			return;
+		var jsn = JSON.stringify(dict);
+		ws_twitse.send(jsn);
+	}
+
+	function CommandTransientTest() {
+		twitse_send({"command": "transient_test", "group": "n/a"});
+	}
+
+</script>	
+
+
+<script>
+
+$(document).ready(function() {
+    $("#restart_all").click(function(){
+        monitor_send({"command": "restart_all"});
+    }); 
+});
+
+</script>
+
+</body>
+</html>
+
