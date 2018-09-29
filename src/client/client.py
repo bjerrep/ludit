@@ -27,7 +27,7 @@ class Client(util.Threadbase):
         self.socket_lock = threading.Lock()
 
         self.multicast = multicast.Client(self.id, util.multicast_ip, util.multicast_port)
-        self.multicast.connect('receive', self.multicast_rx)
+        self.multicast.connect('client_receive', self.multicast_rx)
 
         server_connector_thread = threading.Thread(target=self.server_connector, args=())
         server_connector_thread.daemon
@@ -101,6 +101,7 @@ class Client(util.Threadbase):
                     self.socket = None
                 self.server_endpoint = None
                 log.info('waiting for server connection')
+                self.server_offline_counter = 10
                 self.socket_lock.release()
 
             if not self.server_endpoint:
@@ -130,7 +131,10 @@ def start():
                             help='required identifier in the form groupname:devicename', required=True)
         results = parser.parse_args()
 
-        groupname, devicename = results.id.split(':')
+        try:
+            groupname, devicename = results.id.split(':')
+        except:
+            raise Exception('need a group:device name pair')
 
         def ctrl_c_handler(_, __):
             try:
@@ -145,6 +149,7 @@ def start():
 
         signal.signal(signal.SIGINT, ctrl_c_handler)
 
+        _client = None
         _client = Client(groupname, devicename)
         _client.join()
 

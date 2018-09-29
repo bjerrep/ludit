@@ -17,7 +17,7 @@ class Monitor(util.Threadbase):
     def __init__(self):
         super(Monitor, self).__init__()
         self.multicast = multicast.Server(util.remote_multicast_ip, util.remote_multicast_port)
-        self.multicast.connect('receive', self.multicast_rx)
+        self.multicast.connect('server_receive', self.multicast_rx)
         self.ws = websocket.WebSocket(util.local_ip(), util.server_monitor_websocket_port)
         self.ws.connect('message', self.websocket_rx)
         self.start()

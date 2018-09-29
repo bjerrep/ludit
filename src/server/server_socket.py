@@ -57,7 +57,7 @@ class ServerSocket(util.Threadbase):
                         rxdata = bytearray()
                         self.socket.settimeout(0.1)
                         self.connection, addr = self.socket.accept()
-                        log.info('client connected from ' + str(addr))
+                        log.info('>>> client connected from ' + str(addr))
                         self.connection.settimeout(1.0)
                         connected = True
                         self.emit('clientconnected')
@@ -104,7 +104,7 @@ class ServerSocket(util.Threadbase):
                 connected = False
             except Exception as e:
                 if connected:
-                    log.error('client connection lost "%s"' % str(e))
+                    log.error('>>> client connection lost "%s"' % str(e))
                     connected = False
                 else:
                     log.error('exception: ' + str(e))

@@ -36,7 +36,7 @@ class Player(util.Threadbase):
     last_queue = None
     m_state = State.STOPPED
     log_first_audio = LOG_FIRST_AUDIO_COUNT
-    channel = Channel.RIGHT
+    channel = None
     buffer_state = BufferState.MONITOR_STARTING
     monitor_lock = threading.Lock()  # experimental
     NOF_STARVATION_ALERTS = 25

@@ -30,7 +30,7 @@ class Server(util.Threadbase):
         self.log_first_audio = LOG_FIRST_AUDIO_COUNT
 
         self.multicast = multicast.Server(util.multicast_ip, util.multicast_port)
-        self.multicast.connect('receive', self.multicast_rx)
+        self.multicast.connect('server_receive', self.multicast_rx)
 
         self.ws = websocket.WebSocket(util.local_ip(), util.server_ludit_websocket_port)
         self.ws.connect('message', self.websocket_rx)
@@ -57,7 +57,8 @@ class Server(util.Threadbase):
         if command == 'get_server_socket':
             device = message['from']
             groupname, devicename = device.split(':')
-            endpoint = self.play_sequencer.get_group(groupname).get_device(devicename).start_socket()
+            endpoint = self.play_sequencer.get_group(groupname).get_device(devicename).get_endpoint()
+            log.debug('sending tcp socket endpoint %s to device %s' % (str(endpoint), device))
             self.multicast.send({'command': 'server_socket',
                                  'from': 'server',
                                  'to': device,
@@ -250,11 +251,11 @@ def generate_config():
         'active': True,
         'volume': '100.0',
         'balance': '0.0',
-        'highlowbalance': '-0.41',
-        'xoverfreq': '1200',
+        'highlowbalance': '-0.45',
+        'xoverfreq': '1300',
         'xoverpoles': '4',
         'devices': devices,
-        'equalizer': {'0': '12.0', '1': '6.5'}
+        'equalizer': {'0': '12.0', '1': '10'}
     }
 
     stereo = {

@@ -11,6 +11,8 @@ class Device(util.Base):
         self.clientname = devicename
         self.id = util.make_id(groupname, self.clientname)
         self.socket = server_socket.ServerSocket(self.id)
+        self.socket.connect('clientconnected', self.client_connected)
+        self.socket.connect('message', self.message)
         self._state = None
 
     def terminate(self):
@@ -34,14 +36,12 @@ class Device(util.Base):
 
     def client_connected(self):
         log.info('[%s] sending configuration' % self.id)
-        _ = self.jsn
-        _['command'] = 'configuration'
-        self.socket.send(_)
+        _configuration = dict(self.jsn)
+        _configuration['command'] = 'configuration'
+        self.socket.send(_configuration)
         self.emit('clientconnected')
 
-    def start_socket(self):
-        self.socket.connect('clientconnected', self.client_connected)
-        self.socket.connect('message', self.message)
+    def get_endpoint(self):
         return self.socket.get_endpoint()
 
     def set_param(self, param):

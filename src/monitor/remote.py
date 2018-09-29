@@ -18,7 +18,7 @@ class Remote(util.Threadbase):
         super(Remote, self).__init__()
         self.id = id
         self.multicast = multicast.Client(id, util.remote_multicast_ip, util.remote_multicast_port)
-        self.multicast.connect('receive', self.multicast_rx)
+        self.multicast.connect('client_receive', self.multicast_rx)
         log.info('remote is starting with id "%s" on multicast %s:%i' %
                  (id, util.remote_multicast_ip, util.remote_multicast_port))
         self.start()
