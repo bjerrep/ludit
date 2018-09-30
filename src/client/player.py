@@ -12,6 +12,7 @@ Gst.init(None)
 
 LOG_FIRST_AUDIO_COUNT = 5
 
+
 class State(Enum):
     STOPPED = 1
     BUFFERING = 2
@@ -113,7 +114,7 @@ class Player(util.Threadbase):
                 'd.src_%s ! tee name=t '
                 'interleave name=i ! capssetter caps = audio/x-raw,channels=2,channel-mask=0x3 ! '
                 'audioconvert ! audioresample ! queue name=lastqueue max-size-time=20000000000 ! '
-                'volume name=vol volume=%f ! autoaudiosink name=audiosink sync=false '
+                'volume name=vol volume=%f ! autoaudiosink name=audiosink sync=true '
                 't.src_0 ! queue ! audiocheblimit poles=%i name=lowpass mode=low-pass cutoff=%f ! '
                 'equalizer-10bands name=equalizer band0=%f band1=%f ! volume name=lowvol volume=%f ! i.sink_0 '
                 't.src_1 ! queue ! audiocheblimit poles=%i name=highpass mode=high-pass cutoff=%f ! '
@@ -143,7 +144,7 @@ class Player(util.Threadbase):
 
         self.pipeline.set_state(Gst.State.PAUSED)
 
-    def set_volume(self, volume = None):
+    def set_volume(self, volume=None):
         if volume:
             self.user_volume = volume
         # the pipeline stops if the volume is zero ?
@@ -208,7 +209,7 @@ class Player(util.Threadbase):
                 the current value of the gst clock. It is always running (hardware based)
             base-time
                 normally selected so that the running-time statement above is true
-                here the base time is set into the future since playing starts 
+                here the base time is set into the future since playing starts
                 when the running time >= 0
             """
 
@@ -331,7 +332,7 @@ class Player(util.Threadbase):
     For now playing is brutally restarted if the pipeline buffer suddenly dries out.
     In the current implementation this would be if the codec is trashing data which
     in turn should be investigated since it happens. If the audio is moved from tcp
-    to a more elegant multicast then it makes more sense to be prepared for lost data 
+    to a more elegant multicast then it makes more sense to be prepared for lost data
     and perhaps a strategy like this.
     """
     def pipeline_monitor(self):
