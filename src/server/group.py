@@ -13,11 +13,10 @@ class State(Enum):
 
 
 class Group(util.Base):
-    signals = ('brokensocket', 'status')
+    signals = ('clientdisconnected', 'status')
 
     def __init__(self, jsn):
         self.devices = []
-        self.ready = False
         self.jsn = jsn
         self.play_delay = float(jsn['playdelay'])
         self.groupname = jsn["name"]
@@ -28,8 +27,7 @@ class Group(util.Base):
             _device = device.Device(device_json['name'], self.groupname)
             if not _device.socket.is_alive():
                 raise util.ColdstartException
-            _device.socket.connect('brokensocket', self.broken_socket)
-            _device.connect('clientconnected', self.client_connected)
+            _device.connect('clientdisconnected', self.client_disconnected)
             _device.connect('message', self.client_message)
             complete_json = device_json.copy()
             complete_json.update(jsn)
@@ -42,21 +40,27 @@ class Group(util.Base):
                 return _device
 
     def ready_to_play(self):
-        return self.ready
+        for _device in self.devices:
+            if not _device.is_connected():
+                return False
+        return True
 
-    def active(self):
-        return self.jsn['active']
+    def on(self):
+        return self.jsn['on']
 
     def start_playing(self, now):
         play_time = now + self.play_delay
         self.send_all({'command': 'playing', 'playtime': str(play_time)})
 
+    def stop_playing(self):
+        self.send_all({'command': 'stopping'})
+
     def terminate(self):
         for _device in self.devices:
             _device.terminate()
 
-    def broken_socket(self, source):
-        self.emit('brokensocket', source)
+    def client_disconnected(self, source):
+        self.emit('clientdisconnected', source)
 
     def get_configuration(self):
         config = self.jsn.copy()
@@ -64,8 +68,13 @@ class Group(util.Base):
         return config
 
     def set_param(self, key, value):
-        self.jsn[key] = float(value)
-        self.send_all({'command': 'configuration', key: value})
+        if key == 'on':
+            self.jsn[key] = value
+            if not value:
+                self.stop_playing()
+        else:
+            self.jsn[key] = float(value)
+            self.send_all({'command': 'configuration', key: value})
 
     def set_param_array(self, name, key, value):
         self.jsn[name][key] = float(value)
@@ -90,9 +99,6 @@ class Group(util.Base):
         else:
             log.debug('[%s] got %s ?' % (id, command))
         self.lock.release()
-
-    def client_connected(self):
-        self.ready = True
 
     def send_all(self, packet):
         for _device in self.devices:

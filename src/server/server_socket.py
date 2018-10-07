@@ -113,4 +113,4 @@ class ServerSocket(util.Threadbase):
             self.connection.close()
         if self.socket:
             self.socket.close()
-        log.debug('socket thread terminated')
+        log.debug('server socket exits')

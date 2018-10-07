@@ -39,9 +39,9 @@ class Monitor(util.Threadbase):
 
         log.info('%s returns %s = %s' % (client, command, result))
         websocket.WebSocket.send_message(None,
-                                        {'command': 'get_' + command,
-                                         'from': client,
-                                         'result': result})
+                                         {'command': 'get_' + command,
+                                          'from': client,
+                                          'result': result})
 
     def websocket_rx(self, message):
         ip = message['ip']
@@ -65,9 +65,9 @@ class Monitor(util.Threadbase):
         if result:
             log.info('server returns %s = %s' % (command, result))
             websocket.WebSocket.send_message(None,
-                                            {'command': command,
-                                             'from': 'server',
-                                             'result': result})
+                                             {'command': command,
+                                              'from': 'server',
+                                              'result': result})
 
     def run(self):
         while not self.terminated:

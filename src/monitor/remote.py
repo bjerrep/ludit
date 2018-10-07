@@ -43,7 +43,6 @@ class Remote(util.Threadbase):
         else:
             log.warning('got unknown command %s' % command)
 
-
     def multicast_rx(self, message):
         self.server_lost_time = time.time() + self.SERVER_LOST_SECONDS
         command = message['command']
@@ -61,7 +60,7 @@ class Remote(util.Threadbase):
         elif command == 'message':
             log.info('message: %s' % message['message'])
         elif command == 'ping':
-            pass # fixit
+            pass
         else:
             result = str(-1)
 

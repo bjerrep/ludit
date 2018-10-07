@@ -1,12 +1,15 @@
 [Unit]
 Description=ludit server
-Wants=network-online.target
-After=network-online.target
+Wants=time-sync.target
+After=time-sync.target
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=<git root>/src
+ExecStartPre=-/usr/bin/mkfifo /tmp/audio
+# the chown is optional for non-root to use the fifo
+ExecStartPre=-/bin/chown -R <user:group> /tmp/audio
 ExecStart=/usr/bin/python <git root>/src/run_server.py
 Restart=on-failure
 

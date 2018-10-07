@@ -8,7 +8,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/png" href="../artwork/ludit.png" />
 
-<script type="text/javascript" src="findserver.js"></script>
 <script type="text/javascript" src="smoothie.js"></script>
 
     <style>
@@ -22,12 +21,11 @@
 <link rel="stylesheet" href="jquery-treetable-3.2.0/css/screen.css" media="screen" />
 <link rel="stylesheet" href="jquery-treetable-3.2.0/css/jquery.treetable.css" />
 <link rel="stylesheet" href="jquery-treetable-3.2.0/css/jquery.treetable.theme.default.css" />
-<link rel="stylesheet" href="jquery-ui-1.12.1/jquery-ui.min.js">
 <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
 <link rel='stylesheet' id='edd-styles-css'  href='style.css' type='text/css' media='all' />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
 <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Nunito:200,400,700'>
-<link href="iOS-Toggle-Switch-jQuery-mSwitch/css/jquery.mswitch.css" rel="stylesheet">
+<link href="btnSwitch/jquery.btnswitch.css" rel="stylesheet">
 
 </head>
 
@@ -47,31 +45,10 @@
 		<h2>Kitchen</h2>
 		
 		<div class="standard_kitchen_volume1" id="standard_kitchen_volume1"></div>
-		<!-- <div class="m_switch_kitchen_active1" id="m_switch_kitchen_active1"></div> --->
 
-		<div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
-			<div class="m_settings_cell m_settings_label"></div>
-			<div class="m_settings_cell">
-				<input type="checkbox" id="switcher" class="m_switch_check" value="1" entity="Kitchen">
-			</div>
-		</div></div></div></div></div></div>
-
-
-		<h2>Stereo</h2>  
-		<p>
-			<label for="stereo_value">Volume:</label>
-			<input type="text" id="stereo_value" readonly style="border:0; color:#f6931f; font-weight:bold;">
-		</p>
-		
-		<div id="slider_stereo" style="float:left; width:100%"></div>
 		</br>
-		<div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
-			<div class="m_settings_cell m_settings_label"></div>
-			<div class="m_settings_cell">
-				<input type="checkbox" id="switcher" class="m_switch_check" value="0" entity="Arrgh">
-			</div>
-		</div></div></div></div></div></div>
-
+		
+		<div id="switch_kitchen_on1"></div>
 	</div>
 	
 	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
@@ -136,12 +113,13 @@
 
 </div>
 
-<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
-		integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
-		crossorigin="anonymous"></script>
-<script src="https://code.jquery.com/jquery-1.12.4.js"></script>
-<script src="jquery-ui-1.12.1/jquery-ui.min.js"></script>
-<script src="iOS-Toggle-Switch-jQuery-mSwitch/js/jquery.mswitch.js"></script>
+
+<!-- - - - - - - - - javascript - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->	
+
+<script src="jquery-3.3.1.min.js"></script>
+<script src="btnSwitch/jquery.btnswitch.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<script src="jquery.ui.touch-punch.min.js"></script>
 <script src="js.js"></script>
 <script src="jquery-treetable-3.2.0/jquery.treetable.js"></script>
 
@@ -151,39 +129,12 @@ $("#table_metrics").treetable({ expandable: true });
 
 
 <script type="text/javascript">
-	var ws = null;
-	var ws_ludit = null;
-	var server_ip = null;
 	var ludit_saved_configuration = null;
 	var ludit_unsaved_configuration = null;
-	
-	function start(url) {
-		if (window["WebSocket"]) {
-			ws = new WebSocket(url);
-			ws.onmessage = function (e) {
-				console.log(e.data)
-				var obj = JSON.parse(e.data);
-				//var name = obj['name'];
-				//var command = obj['command'];
-			};
-			ws.onclose = function (e) {
-				check();
-			};
-			ws.onopen = function (e) {
-				console.log("monitor websocket connected");
-				//ws.send(JSON.stringify({"command": "get_history"}));
-			};
-		} else {
-			$("#error").text("WebSocket init failed")
-		}
-	}
-
-	
 	var channels = {};
 	var colors = ['orange', 'yellow', 'green', 'blue', 'purple'];
 	var offsets = {}
 	var next_color = 0;
-	var ws = null;
 	var ms_per_pixel = 2000;
 
 	class ChannelInfo {
@@ -303,7 +254,7 @@ $("#table_metrics").treetable({ expandable: true });
 			ws_twitse.onclose = function (e) {
 				channels = {};
 				update_channel_list();
-				check();
+				check_websockets();
 			};
 			ws_twitse.onopen = function (e) {
 				ws_twitse.send(JSON.stringify({"command": "get_history"}));
@@ -313,21 +264,22 @@ $("#table_metrics").treetable({ expandable: true });
 		}
 	}
 	
+	ws_ludit = null;
+	var no_configuration_reload = false;
 	
 	function start_ludit(url) {
 		if (window["WebSocket"]) {
 			ws_ludit = new WebSocket(url);
 			ws_ludit.onmessage = function (e) {
-				console.log(e.data)
 				var obj = JSON.parse(e.data);
 				var command = obj['command'];
-				if (command == "configuration") {
+				if (command == "configuration" && !no_configuration_reload) {
 					ludit_saved_configuration = obj['current_conf'];
 					reload_configuration();
 				}
 			};
 			ws_ludit.onclose = function (e) {
-				check();
+				check_websockets();
 			};
 			ws_ludit.onopen = function (e) {
 				console.log("ludit websocket connected");
@@ -338,11 +290,12 @@ $("#table_metrics").treetable({ expandable: true });
 		}
 	}
 	
+	ws_monitor = null;
+	
 	function start_monitor(url) {
 		if (window["WebSocket"]) {
 			ws_monitor = new WebSocket(url);
 			ws_monitor.onmessage = function (e) {
-				console.log(e.data)
 				var obj = JSON.parse(e.data);
 				var command = obj['command'];
 				if (command == "get_cputemperature") {
@@ -353,7 +306,7 @@ $("#table_metrics").treetable({ expandable: true });
 				}
 			};
 			ws_monitor.onclose = function (e) {
-				check();
+				check_websockets();
 			};
 			ws_monitor.onopen = function (e) {
 				console.log("ludit monitor connected");
@@ -370,36 +323,16 @@ $("#table_metrics").treetable({ expandable: true });
 	}
 	setInterval(monitor_metrics_refresh, 5000);
 	
-	function check() {
-		//if (!ws || !ws_ludit || ws.readyState === WebSocket.CLOSED || ws_ludit.readyState === WebSocket.CLOSED) 
-		if (!ws_ludit || ws_ludit.readyState === WebSocket.CLOSED) 
-		//if (!ws || ws.readyState === WebSocket.CLOSED) 
-		{
-			findserver(45658, "192.168.1.", 100, 130, 50, 5000, function(ip, port)
-			{
-				if (ip != null) {
-					console.log("found websocket at " + ip);
-					//start(ws_url(ip, 45657));
-					start_ludit(ws_url(ip, 45658));
-					start_twitse(ws_url(ip, 12343));
-				}
-				else {
-					console.log("server not found");
-				}
-			});
+	function check_websockets() {
+		if (!ws_ludit || ws_ludit.readyState === WebSocket.CLOSED) {
+			start_ludit(ws_url("ludit", 45658));
+			start_monitor(ws_url("ludit", 45659));
+			start_twitse(ws_url("ludit", 12343));
 		}
 	}
 	
-	if (ws_ludit)
-		check();
-	else
-	{
-		start_ludit(ws_url("ludit", 45658));
-		start_monitor(ws_url("ludit", 45659));
-		start_twitse(ws_url("ludit", 12343));
-	}
-	
-	setInterval(check, 10000);
+	setInterval(check_websockets, 10000);
+	check_websockets();
 
 	function ludit_send(dict) {
 		if (!ws_ludit)

@@ -42,10 +42,10 @@ class MulticastSocket(util.Threadbase):
                     log.critical('emit message failed with %s' % str(e))
 
         except Exception as e:
-            log.critical('server multicast got ' + str(e))
+            log.critical('multicast got ' + str(e))
 
         self.socket.close()
-        log.debug('server multicast terminated')
+        log.debug('multicast exits')
 
 
 class Server(MulticastSocket):

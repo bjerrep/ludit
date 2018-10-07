@@ -93,4 +93,4 @@ class ClientSocket(util.Threadbase):
 
         if self.socket:
             self.socket.close()
-        log.debug(self.name + ' thread terminated')
+        log.debug(self.name + ' exits')

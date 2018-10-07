@@ -45,6 +45,9 @@ class Client(util.Threadbase):
             self.player.join()
         super().terminate()
 
+    def connected(self):
+        return self.socket is not None
+
     def multicast_rx(self, message):
         command = message['command']
         if command == 'server_socket':
@@ -114,17 +117,18 @@ class Client(util.Threadbase):
                                      'to': 'server',
                                      'from': self.id})
             time.sleep(1)
-        log.debug('server connector terminated')
+        log.debug('server connector exits')
         return False
 
     def run(self):
         self.player.mainloop.run()
-        log.debug('main thread terminated')
+        log.debug('client exits')
 
-"""
-Use the run_client.py script in ./src
-"""
+
 def start():
+    """
+    Use the run_client.py script in ./src
+    """
     try:
         parser = argparse.ArgumentParser('Ludit client')
         parser.add_argument('--id', action='store', dest='id',

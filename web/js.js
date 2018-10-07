@@ -18,6 +18,9 @@ function get_local_ip() {
 	};
 };
 
+function ws_url(ip, port) {
+	return "ws://" + ip + ":" + port;
+}
 
 $(".tab-list").on("click", ".tab", function(e) {
 	e.preventDefault();
@@ -34,33 +37,6 @@ $(".tab-list").on("click", ".tab", function(e) {
 });
 
 
-$( function() {
-	$("#slider_kitchen_crossover").slider({
-		value:1000, min: 300, max: 3000, step: 10,
-		slide: function(event, ui) {
-			$("#crossover_label").val(ui.value);
-			ludit_send({"command": "crossover", "frequency": ui.value.toString(), "group": "kitchen"});
-			//console.log(ui.value);
-		}
-	});
-	$("#crossover_label").val( $("#slider_kitchen_crossover").slider("value") );
-});
-
-
-$( function() {
-	$("#slider_stereo").slider({
-		value:100, min: 0, max: 100, step: 1,
-		slide: function( event, ui ) {
-			$( "#stereo_value" ).val( ui.value );
-			ludit_send({"command": "volume", "volume": ui.value.toString(), "group": "stereo"});
-			console.log(ui.value);
-		}
-	});
-	$( "#stereo_value" ).val( $( "#slider_stereo" ).slider( "value" ) );
-
-});
-
-
 function call_server(group, type, value) {
 	console.log('new value ' + group + " " + type + " " + value);
 	ludit_send({"command": "set_" + type, "group": group, "value": value.toString()});
@@ -70,12 +46,12 @@ function call_server(group, type, value) {
 /////////////////////// slider ///////////////////////
 
 function slider_js(group, type, serial, serials, value, min, max) {
-	
+
 	var setter = ""
 	while (serials > 0) {
 		var gts = group + '_' + type + serials;
 		setter += ' if ($("#slider_' + gts + '").slider("value") != ui.value) {$("#slider_' + gts + '").slider("value", ui.value);} ';
-		setter += ' $(".' + gts +'").val(ui.value); ';
+		setter += ' $(".' + gts +'").val(ui.value.toFixed(1)); ';
 		--serials;
 	}
 	
@@ -83,18 +59,27 @@ function slider_js(group, type, serial, serials, value, min, max) {
 	
 	var js='$( function() {\
   	    $("#slider_' + gts + '").slider({\
-	    value:' + value + ', min: ' + min + ', max: ' + max + ', step: ' + (max - min) / 1000.0 + ',\
+  	    value:' + value + ', min: ' + min + ', max: ' + max + ', step: ' + (max - min) / 1000.0 + ',\
 	    slide: function(event, ui) {\
-	        ' + setter + ' \
 	        call_server("' + group + '","' + type + '", ui.value);\
-        }\
+	        '+ setter +'\
+	        return true;\
+        },\
+        start: function(event, ui) {\
+			no_configuration_reload = true;\
+		},\
+		stop: function(event, ui) {\
+			no_configuration_reload = false;\
+			ludit_send({"command": "get_configuration", "group": "n/a"});\
+		}\
     });\
     $(".' + gts + '").val( $("#slider_' + gts + '").slider("value"));\
-});'
-
-//console.log('js=' + js)
-
-return js;
+    $(".' + gts + '").on( "slidestart", function( event, ui ) {} );\
+    $(".' + gts + '").on( "slidestop", function( event, ui ) {} );\
+    $(".' + gts + '").on( "slide", function( event, ui ) {} );\
+	});'
+	
+	return js;
 };
 
 function insert_slider_html(legend, group, type, serial) {      
@@ -104,23 +89,39 @@ function insert_slider_html(legend, group, type, serial) {
 	       <input type="text" class="' + gts + '" id="amount" readonly style="border:0; color:#f6931f; font-weight:bold;"></p>\
 	       <div id="slider_' + gts + '" style="float:left; width:100%"></div></br>';
 	
-	document.getElementById("standard_" + gts).innerHTML = html;
+	$("#standard_" + gts).html(html);
 }
 
-function set_slider_value(group, type, value) {
-	var serial = 1;
+function set_slider_value(group, type, serial, value) {
 	var gts = group + '_' + type + serial;
-	$( "." + gts ).val( value )
-	$("#slider_" + gts).slider("value", value);
+	$( "." + gts ).val( parseFloat(value).toFixed(1) )
+	var sldr = $("#slider_" + gts);
+	sldr.slider().slider("value", value);
 }
 
 function add_slider(legend, group, type, serial, serials, value, min, max) {
 	var gts = group + '_' + type + serial;
-	console.log('constructing ' + gts);
-	insert_slider_html(legend, group, type, serial);
-	window.eval(slider_js(group, type, serial, serials, value, min, max));
-	set_slider_value(group, type, value);
+	
+	if ( !document.querySelector("." + gts) )
+	{
+		console.log('constructing ' + gts);
+		insert_slider_html(legend, group, type, serial);
+		window.eval(slider_js(group, type, serial, serials, value, min, max));
+		set_slider_value(group, type, value);
+	} else 
+	{
+		while (serials > 0) {
+			var gtsweep = group + '_' + type + serials;
+			var current_value = document.querySelector("." + gtsweep).value;
+			if (!!current_value.localeCompare(value))
+			{
+				set_slider_value(group, type, serials, value);
+			}
+			--serials;
+		}
+	}
 }
+
 
 /////////////////////// radio ///////////////////////
 
@@ -161,27 +162,27 @@ function add_radio(group, type, serial, serials, value) {
 	set_radio_value(group, type, value);
 }
 
+
 /////////////////////// switch ///////////////////////
 
-function insert_switch_html(label, group, ident, serial) {      
-	var gts = group + '_' + ident + serial;
-	
-	var name_class = 'name="m_switch_' + gts + '" class="m_switch_' + gts + '" ';
-	
-	html = '<div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">\
-	<div class="m_settings_cell m_settings_label"></div>\
-	<div class="m_settings_cell">\
-	<input type="checkbox" id="switcher" ' + name_class + ' value="0" entity="' + label + '">\
-	</div>\
-	</div></div></div></div></div></div>';
-	
-	console.log(html);
-	
-	document.getElementById("m_switch_" + gts).innerHTML = html;
-}
-
-function add_switch(label, group, ident, serial) {
-	//insert_switch_html(label, group, ident, serial);
+function add_switch(group, ident, serial, is_on) {
+	var key = "switch_" + group + "_" + ident + serial;
+	$("#" + key).btnSwitch({
+		_group: group,
+		_ident: ident,
+		ToggleState: is_on,
+		OnValue: true,
+		OnCallback: function(val) {
+			console.log(this._group + " " + this._ident + " = " + val);
+			ludit_send({"command": "set_on", "group": this._group, "value": val});
+		},
+		OffValue: false,
+		OffCallback: function (val) {
+			//val = val.toString();
+			console.log(this._group + " " + this._ident + " = " + val);
+			ludit_send({"command": "set_on", "group": this._group, "value": val});
+		}
+	});
 }
 
 
@@ -221,15 +222,17 @@ function add_metric(root, sub, text, value) {
 		table.treetable("sortBranch", subNode);
 	}
 }
-	
+
 
 function reload_configuration() {
 	var grps = ludit_saved_configuration['groups'];
+	
 	for (group of grps) {
 		if (group['enabled']) {
 			var name = group['name'];
-			add_slider('Volume', name, "volume", 1, 2, group['volume'], 0, 100);
+			add_slider('Volume', name, "volume", 1, 2, group['volume'], 0.0, 100.0);
 			add_slider('Volume', name, "volume", 2, 2, group['volume'], 0, 100);
+			add_switch(name, "on", 1, group["on"]);
 			add_slider('Balance', name, "balance", 1, 1, group['balance'], -100, 100);
 			add_slider('Crossover frequency', name, "xoverfreq", 1, 1, group['xoverfreq'], 300, 3000);
 			add_radio(name, "order", 1, 1, group['xoverpoles']);
@@ -239,50 +242,12 @@ function reload_configuration() {
 				var gain = parseFloat(value);
 				add_slider(eq_legends[parseInt(key)], name, "band" + key, 1, 1, gain, -12, 12);
 			}
-			add_switch('Play', name, "active", 1, 1);
 		}
 	}
 }
 
+
 $(document).ready(function() {
-	
-	
-	$(".m_switch_check:checkbox").mSwitch({
-		onRender:function(elem){
-			var entity = elem.attr("entity");
-			var label = elem.parent().parent().prev(".m_settings_label");
-			if (elem.val() == 0) {
-				$.mSwitch.turnOff(elem);
-				label.html("<span class=\"m_red\">Off</font>");
-			} else {
-				label.html("<span class=\"m_green\">On</font>");
-				$.mSwitch.turnOn(elem);
-			}
-		},
-		onRendered:function(elem){
-			console.log(elem);
-		},
-		onTurnOn:function(elem){
-			var entity = elem.attr("entity");
-			var label = elem.parent().parent().prev(".m_settings_label");
-			if (elem.val() == "0") {
-				elem.val("1");
-				label.html("<span class=\"m_green\">On</font>");
-			} else {
-				label.html("<span class=\"m_red\">Off</font>");
-			}
-		},
-		onTurnOff:function(elem){
-			var entity = elem.attr("entity");
-			var label = elem.parent().parent().prev(".m_settings_label");
-			if (elem.val() == 1) {
-				elem.val("0");
-				label.html("<span class=\"m_red\">Off</font>");
-			} else {
-				label.html("<span class=\"m_green\">On</font>");
-			}
-		}
-	});
-	
+
 });
 

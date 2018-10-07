@@ -16,6 +16,10 @@ server_ludit_websocket_port = 45658
 server_monitor_websocket_port = 45659
 
 
+class Base(Connectable):
+    pass
+
+
 class Threadbase(threading.Thread, Connectable):
     def __init__(self, name=None):
         super(Threadbase, self).__init__()
@@ -96,8 +100,4 @@ class ColdstartException(Exception):
 
 
 class AudioClosedException(Exception):
-    pass
-
-
-class Base(Connectable):
     pass

@@ -34,11 +34,13 @@ class Player(util.Threadbase):
     signals = 'status'
 
     pipeline = None
+    source = None
     last_queue = None
     m_state = State.STOPPED
     log_first_audio = LOG_FIRST_AUDIO_COUNT
     channel = None
     buffer_state = BufferState.MONITOR_STARTING
+    last_status_time = None
     monitor_lock = threading.Lock()  # experimental
     NOF_STARVATION_ALERTS = 25
     playing_start_time = None
@@ -93,7 +95,13 @@ class Player(util.Threadbase):
             buffer_size = self.buffer_size
             self.gain = 3.0
         elif self.codec == 'aac':
-            decoding = 'aacparse ! avdec_aac !'
+            # decoding = 'aacparse ! avdec_aac !'
+            decoding = 'decodebin !'
+            buffer_size = self.buffer_size
+            self.gain = 0.5
+        elif self.codec == 'aac_adts':
+            # audio generated with gstreamer "faac ! aacparse ! avmux_adts"
+            decoding = 'decodebin !'
             buffer_size = self.buffer_size
             self.gain = 0.5
         elif self.codec == 'pcm':
@@ -129,20 +137,18 @@ class Player(util.Threadbase):
 
             log.info('launching pipeline ...')
             self.pipeline = Gst.parse_launch(pipeline)
+            self.source = self.pipeline.get_by_name('audiosource')
+            self.last_queue = self.pipeline.get_by_name('lastqueue')
+
+            bus = self.pipeline.get_bus()
+            bus.add_signal_watch()
+            bus.enable_sync_message_emission()
+            bus.connect('message', self.bus_message)
+
+            self.pipeline.set_state(Gst.State.PAUSED)
 
         except Exception as e:
-            log.critical("couldn't launch pipeline, %s" % str(e))
-
-        self.source = self.pipeline.get_by_name('audiosource')
-
-        self.last_queue = self.pipeline.get_by_name('lastqueue')
-
-        bus = self.pipeline.get_bus()
-        bus.add_signal_watch()
-        bus.enable_sync_message_emission()
-        bus.connect('message', self.bus_message)
-
-        self.pipeline.set_state(Gst.State.PAUSED)
+            log.critical("couldn't construct pipeline, %s" % str(e))
 
     def set_volume(self, volume=None):
         if volume:
@@ -229,6 +235,8 @@ class Player(util.Threadbase):
 
             log.info('playing will start in %.9f sec' % play_delay_secs)
 
+            self.last_status_time = time.time()
+
         elif command == 'stopping':
             log.info('---- stopping ----')
             self.hwctl.play(False)
@@ -238,6 +246,7 @@ class Player(util.Threadbase):
             self.m_state = State.STOPPED
             self.playing_start_time = None
             self.buffer_state = BufferState.MONITOR_STARTING
+            self.last_status_time = None
 
         elif command == 'configuration':
             self.configure_pipeline(message)
@@ -324,8 +333,9 @@ class Player(util.Threadbase):
             playtime_skew = (time.time() - self.playing_start_time) - duration_secs
             log.info("playing time %.3f sec, buffered %i bytes. Skew %.6f" %
                      (duration_secs, buffer_size, playtime_skew))
-        except:
-            return 999
+        except Exception as e:
+            log.error('internal error %s' % str(e))
+            return True
         return playtime_skew > 1.0
 
     """
@@ -392,18 +402,19 @@ class Player(util.Threadbase):
     def run(self):
         try:
             log.debug('play sequenser starting')
-            last_status_time = time.time()
 
             while not self.terminated:
                 time.sleep(0.1)
 
                 self.pipeline_monitor()
 
-                if (self.m_state != State.STOPPED) and (time.time() - last_status_time > 2):
-                    last_status_time = time.time()
+                if (self.m_state != State.STOPPED) and\
+                     self.last_status_time and\
+                     (time.time() - self.last_status_time > 2):
+                    self.last_status_time = time.time()
                     self.print_stats()
 
         except Exception as e:
             log.critical('player thread exception %s' % str(e))
 
-        log.debug('player thread terminated')
+        log.debug('player exits')

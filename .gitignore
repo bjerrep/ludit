@@ -2,4 +2,6 @@
 *.idea*
 *.pyc
 
+src/*.cfg
+
 src/export.sh

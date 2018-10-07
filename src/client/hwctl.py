@@ -61,4 +61,4 @@ class HwCtl(util.Threadbase):
                         state = HardwareState.POWEROFF
 
         gpio.close()
-        log.debug('hwctrl thread terminated')
+        log.debug('hwctrl exits')

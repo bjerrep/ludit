@@ -6,7 +6,7 @@ import time
 
 
 class PlaySequencer(util.Base):
-    signals = ('brokensocket',)
+    signals = ('clientdisconnected',)
     m_state = group.State.STOPPED
     m_buffer_count = 0
     groups = {}
@@ -23,7 +23,7 @@ class PlaySequencer(util.Base):
             log.debug('playsequencer, adding group "%s"' % group_name)
             self.audio_timeout = float(jsn['audiotimeout'])
             _group = group.Group(group_jsn)
-            _group.connect('brokensocket', self.broken_socket)
+            _group.connect('clientdisconnected', self.client_disconnected)
             _group.connect('status', self.status)
             self.groups.update({group_name: _group})
 
@@ -32,8 +32,8 @@ class PlaySequencer(util.Base):
 
     def ready(self):
         try:
-            for group in self.enabled_groups():
-                if not group.ready_to_play():
+            for _group in self.playing_groups():
+                if not _group.ready_to_play():
                     return False
             return True
         except:
@@ -43,8 +43,8 @@ class PlaySequencer(util.Base):
         for _group in self.groups.values():
             _group.terminate()
 
-    def broken_socket(self, source):
-        self.emit('brokensocket', source)
+    def client_disconnected(self, source):
+        self.emit('clientdisconnected', source)
 
     def status(self, state):
         if state in ('buffered', 'starved'):
@@ -57,12 +57,12 @@ class PlaySequencer(util.Base):
 
     def current_configuration(self):
         config = []
-        for group in self.groups.values():
-            config.append(group.get_configuration())
-        return {'groups' : config}
+        for _group in self.groups.values():
+            config.append(_group.get_configuration())
+        return {'groups': config}
 
     def send_to_groups(self, packet):
-        for _group in self.enabled_groups():
+        for _group in self.playing_groups():
             _group.send_all(packet)
 
     def set_codec(self, codec):
@@ -74,23 +74,29 @@ class PlaySequencer(util.Base):
     def get_group(self, groupname):
         return self.groups[groupname]
 
+    def set_state(self, state):
+        if state == 'stop':
+            self.state_changed(group.State.STOPPED)
+        else:
+            log.warning('illegal state %s' % state)
+
     def state_changed(self, new_state):
         global AudioQueue
         if self.m_state != new_state:
             now = time.time()
-            for _group in self.enabled_groups():
+            for _group in self.playing_groups():
                 if new_state == group.State.BUFFERING:
                     _group.send_all({'command': 'buffering'})
                 elif new_state == group.State.STOPPED:
-                    _group.send_all({'command': 'stopping'})
+                    _group.stop_playing()
                 elif new_state == group.State.PLAYING:
                     _group.start_playing(now)
                 else:
                     log.critical('internal error #0082')
             self.m_state = new_state
 
-    def enabled_groups(self):
-        return [group for group in self.groups.values() if group.active()]
+    def playing_groups(self):
+        return [group for group in self.groups.values() if group.on()]
 
     def new_audio(self, audio):
 
