@@ -3,6 +3,7 @@
 from common import util
 from common.log import logger as log
 from common import multicast
+from monitor import metrics
 import time
 import signal
 import argparse
@@ -39,7 +40,7 @@ class Remote(util.Threadbase):
         elif command == 'restart_all':
             self.service('restart', 'ludit_client')
             self.service('restart', 'twitse_client')
-            self.service('restart', 'ludit_remote')
+            self.service('restart', 'ludit_remote')  # this one
         else:
             log.warning('got unknown command %s' % command)
 
@@ -53,10 +54,17 @@ class Remote(util.Threadbase):
         elif command in ('reboot', 'restart_all'):
             result = self.computer(command)
         elif command == 'cputemperature':
-            with open('/sys/class/thermal/thermal_zone0/temp') as f:
-                result = "%.1f" % (int(f.read()) / 1000)
+            result = metrics.get_cputemperature()
         elif command == 'ip':
             result = util.local_ip()
+        elif command == 'uptime':
+            result = metrics.get_uptime()
+        elif command == 'loadaverages':
+            result = metrics.get_loadaverages()
+        elif command == 'cpuload':
+            result = metrics.get_cpu_load()
+        elif command == 'wifi_stats':
+            result = metrics.get_wifi_stats()
         elif command == 'message':
             log.info('message: %s' % message['message'])
         elif command == 'ping':

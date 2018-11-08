@@ -1,5 +1,6 @@
 from server import sourcefifo
 from server import sourcetcp
+from server import sourcespotifyd
 from common.log import logger as log
 from common import util
 import queue
@@ -16,16 +17,20 @@ LOG_FIRST_AUDIO_COUNT = 5
 
 class InputMux(util.Threadbase):
     """
-    Hosts the sources (currently sourcefifo and sourcetcp), listens to their events
+    Hosts the sources (currently sourcefifo, sourcetcp and sourcespotifyd), listens to their events
     and makes sure that the events passed on are sane.
     """
     def __init__(self):
         super(InputMux, self).__init__(name='inputmux  ')
         self.queue = queue.Queue()
+
         self.sourcefifo = sourcefifo.SourceFifo()
         self.sourcefifo.connect("event", self.input_event)
         self.sourcetcp = sourcetcp.SourceTCP()
         self.sourcetcp.connect("event", self.input_event)
+        self.sourcespotifyd = sourcespotifyd.SourceSpotifyd()
+        self.sourcespotifyd.connect("event", self.input_event)
+
         self.log_first_audio = LOG_FIRST_AUDIO_COUNT
         self.now_playing = None
         self.timeout_counter = None
@@ -37,6 +42,7 @@ class InputMux(util.Threadbase):
         super().terminate()
         self.sourcefifo.terminate()
         self.sourcetcp.terminate()
+        self.sourcespotifyd.terminate()
         self.mainloop.quit()
 
     @staticmethod

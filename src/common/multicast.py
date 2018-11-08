@@ -56,8 +56,11 @@ class Server(MulticastSocket):
         super().connect('socket_receive', self.receive)
 
     def receive(self, message):
-        if message['to'] == 'server':
-            self.emit('server_receive', message)
+        try:
+            if message['to'] == 'server':
+                self.emit('server_receive', message)
+        except Exception as e:
+            log.error('multicast server rx gave %s' % str(e))
 
 
 class Client(MulticastSocket):
@@ -69,5 +72,8 @@ class Client(MulticastSocket):
         super().connect('socket_receive', self.receive)
 
     def receive(self, message):
-        if message['to'] in (self.id, '*') or self.id == '*':
-            self.emit('client_receive', message)
+        try:
+            if message['to'] in (self.id, '*') or self.id == '*':
+                self.emit('client_receive', message)
+        except Exception as e:
+            log.error('multicast client rx gave %s' % str(e))

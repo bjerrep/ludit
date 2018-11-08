@@ -255,6 +255,7 @@ def start():
         signal.signal(signal.SIGINT, ctrl_c_handler)
         signal.signal(signal.SIGPIPE, ignore)
 
+        _server = None
         _server = Server(config)
         _server.join()
         log.info('server exiting')

@@ -80,6 +80,7 @@
 		<div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
 			<div class="m_settings_cell">
 				<input id="restart_all" name="restart_all" type="submit" value="Restart All"/>
+				<input id="reboot" name="reboot" type="submit" value="Reboot"/>
 			</div>
 		</div></div></div></div></div></div>
 
@@ -108,6 +109,7 @@
 			<input type="button" value="50us step response" onclick="CommandTransientTest();" >
 		</p>
 		
+		<div id="wall_offset"></div>
 		<div id="error"></div>
 	</div>
 
@@ -145,6 +147,8 @@ $("#table_metrics").treetable({ expandable: true });
 			this._color = color;
 			this._lockstate = "unknown";
 			this._loss = 0.0;
+			this._meanabsdev = 0.0;
+			this._rms = 0.0;
 		}
 
 		get timeseries() { return this._chart; }
@@ -155,21 +159,27 @@ $("#table_metrics").treetable({ expandable: true });
 		get lockstate() { return this._lockstate; }
 		set loss(new_loss) { this._loss = new_loss; }
 		get loss() { return this._loss; }
+		set meanabsdev(new_meanabsdev) { this._meanabsdev = new_meanabsdev; }
+		get meanabsdev() { return this._meanabsdev; }
+		set rms(new_rms) { this._rms = new_rms; }
+		get rms() { return this._rms; }
 	};
 
 	function update_channel_list() {
 		var c = document.getElementById('channel_box').getContext('2d');
-		var x1 = 30, x2 = 90, x3 = 160, x4 = 280, x5 = 350;
+		var x1 = 10, x2 = 60, x3 = 110, x4 = 180, x5 = 230, x6 = 275, x7 = 310, xlast = x7;
 		var y0 = 30, y = 50;
 		var lineheight = 20;
 		
 		c.fillStyle = "dimgrey";
-		c.fillRect(0, 0, x5 + 100, 150);
-		c.font = 'bold 14px Arial, sans-serif';
+		c.fillRect(0, 0, xlast + 100, 150);
+		c.font = 'bold 11px Arial, sans-serif';
 
 		c.fillStyle = "black";
-		c.fillText("Loss %", x4, y0);
-		c.fillText("Offs us", x5, y0);
+		c.fillText("Loss%", x4, y0);
+		c.fillText("Offset", x5, y0);
+		c.fillText("AMA", x6, y0);
+		c.fillText("RMS", x7, y0);
 		
 		var keys = Object.keys(channels);
 		for (var i = 0; i < keys.length; i++) {
@@ -185,6 +195,8 @@ $("#table_metrics").treetable({ expandable: true });
 			if (offset != 'undefined') {
 				c.fillText(parseFloat(offset).toFixed(1), x5, yoff);
 			}
+			c.fillText(parseFloat(channel_info.meanabsdev).toFixed(1), x6, yoff);
+			c.fillText(parseFloat(channel_info.rms).toFixed(1), x7, yoff);
 		}
 	}
 
@@ -218,9 +230,14 @@ $("#table_metrics").treetable({ expandable: true });
 			ws_twitse = new WebSocket(url);
 			ws_twitse.onmessage = function (e) {
 				var obj = JSON.parse(e.data);
-				var name = obj['name'];
 				var command = obj['command'];
 				
+				if (command === "walloffset") {
+					$("#wall_offset").text("Wall offset : " + obj['value'] + " secs");
+					return;
+				}
+				
+				var name = obj['name'];
 				var channel_info = channels[name];
 				
 				if (channel_info === undefined) {
@@ -247,6 +264,8 @@ $("#table_metrics").treetable({ expandable: true });
 					time_series.append(parseInt(time), parseFloat(value));
 					
 					offsets[name] = value;
+					channel_info.meanabsdev = obj['meanabsdev']
+					channel_info.rms = obj['rms']
 					update_channel_list();
 				}
 				update_channel_list();
@@ -257,7 +276,7 @@ $("#table_metrics").treetable({ expandable: true });
 				check_websockets();
 			};
 			ws_twitse.onopen = function (e) {
-				ws_twitse.send(JSON.stringify({"command": "get_history"}));
+				twitse_send({"command": "get_history"});
 			};
 		} else {
 			$("#error").text("WebSocket init failed")
@@ -298,19 +317,32 @@ $("#table_metrics").treetable({ expandable: true });
 			ws_monitor.onmessage = function (e) {
 				var obj = JSON.parse(e.data);
 				var command = obj['command'];
-				if (command == "get_cputemperature") {
-					add_metric('temperature', 'cputemperature', obj['from'], obj['result']);
-				}
-				else if (command == "get_ip") {
-					add_metric('network', 'ip', obj['from'], obj['result']);
-				}
+				var from = obj['from'];
+				var result = obj['result'];
+				if (command == "get_cputemperature")
+					add_metric('temperature', 'cputemperature', from, result);
+				else if (command == "get_uptime")
+					add_metric('computers', 'uptime', from, result);
+				else if (command == "get_loadaverages")
+					add_metric('computers', 'loadaverages', from, result);
+				else if (command == "get_cpuload")
+					add_metric('computers', 'cpuload', from, result);
+				else if (command == "get_ip")
+					add_metric('network', 'ip', from, result);
+				else if (command == "get_wifi_stats")
+					add_metric('network', 'wifi', from, result);
+				else if (command == "get_bluetooth_clients")
+					var metrics = JSON.parse(result); // cant handle multiple clients
+					add_metric('bluetooth', 'clients', 'name', metrics['name']);
+					add_metric('bluetooth', 'clients', 'address', metrics['address']);
+					add_metric('bluetooth', 'clients', 'rssi', metrics['rssi']);
 			};
 			ws_monitor.onclose = function (e) {
 				check_websockets();
 			};
 			ws_monitor.onopen = function (e) {
 				console.log("ludit monitor connected");
-				monitor_send({"command": "get_cputemperature", "group": "n/a"});
+				monitor_metrics_refresh();
 				monitor_send({"command": "get_ip", "group": "n/a"});
 			};
 		} else {
@@ -318,10 +350,28 @@ $("#table_metrics").treetable({ expandable: true });
 		}
 	}
 	
+	var interval = 100;
+	var index = 0;
+	var metrics_timer = setInterval(monitor_metrics_refresh, interval);
+	
 	function monitor_metrics_refresh() {
-		monitor_send({"command": "get_cputemperature", "group": "n/a"});
+		switch(index++) {
+			case 0: monitor_send({"command": "get_cputemperature", "group": "n/a"}); return;
+			case 1: monitor_send({"command": "get_loadaverages", "group": "n/a"}); return;
+			case 2: monitor_send({"command": "get_cpuload", "group": "n/a"}); return;
+			case 3: monitor_send({"command": "get_uptime", "group": "n/a"}); return;
+			case 4: monitor_send({"command": "get_wifi_stats", "group": "n/a"}); return;
+			case 5: twitse_send( {"command": "get_wall_offset"}); return;
+			case 6: monitor_send({"command": "get_bluetooth_clients"}); return;
+		}
+		if (interval < 2000) {
+			interval = 2000;
+			clearInterval(metrics_timer);
+			metrics_timer = setInterval(monitor_metrics_refresh, interval);
+		}
+		index = 0;
 	}
-	setInterval(monitor_metrics_refresh, 5000);
+	
 	
 	function check_websockets() {
 		if (!ws_ludit || ws_ludit.readyState === WebSocket.CLOSED) {
@@ -330,7 +380,6 @@ $("#table_metrics").treetable({ expandable: true });
 			start_twitse(ws_url("ludit", 12343));
 		}
 	}
-	
 	setInterval(check_websockets, 10000);
 	check_websockets();
 
@@ -367,6 +416,9 @@ $("#table_metrics").treetable({ expandable: true });
 $(document).ready(function() {
     $("#restart_all").click(function(){
         monitor_send({"command": "restart_all"});
+    }); 
+    $("#reboot").click(function(){
+        monitor_send({"command": "reboot"});
     }); 
 });
 

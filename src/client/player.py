@@ -408,9 +408,8 @@ class Player(util.Threadbase):
 
                 self.pipeline_monitor()
 
-                if (self.m_state != State.STOPPED) and\
-                     self.last_status_time and\
-                     (time.time() - self.last_status_time > 2):
+                if (self.m_state != State.STOPPED) and self.last_status_time and \
+                        (time.time() - self.last_status_time > 2):
                     self.last_status_time = time.time()
                     self.print_stats()
 

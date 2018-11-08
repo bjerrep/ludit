@@ -62,13 +62,21 @@ def local_ip():
 
 
 def execute(command):
-    log.debug('NOT executing "%s"' % command)
-    return 0
+    # log.debug('NOT executing "%s"' % command)
+    # return 0
 
     ret = subprocess.run(command, shell=True)
     if ret.returncode:
         log.critical('command failed with exitcode %i' % ret.returncode)
     return ret.returncode
+
+
+def execute_get_output(command):
+    try:
+        output = subprocess.check_output(command, shell=True)
+        return output.decode()
+    except subprocess.CalledProcessError:
+        return None
 
 
 class MalformedPacketException(Exception):

@@ -1,0 +1,15 @@
+[Unit]
+Description=spotifyd with ludit command fifo
+
+[Service]
+Type=simple
+User=root
+ExecStartPre=-/usr/bin/mkfifo /tmp/spotifyd
+# the chown is optional for non-root to use the fifo
+ExecStartPre=-/bin/chown -R <user:group> /tmp/spotifyd
+ExecStart=<path>/spotifyd --no-daemon --onevent <git root>/config/write_spotifyd_fifo.sh
+Restart=always
+RestartSec=12
+
+[Install]
+WantedBy=default.target
