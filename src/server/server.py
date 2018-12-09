@@ -9,11 +9,9 @@ from server import inputmux
 import time
 import signal
 import argparse
-import os
 import queue
 import sys
 import json
-import stat
 import threading
 
 
@@ -233,10 +231,6 @@ def start():
         else:
             log.warning('no configuration file specified (--cfg), using template configuration')
             config = generate_config()
-
-        if not stat.S_ISFIFO(os.stat('/tmp/audio').st_mode):
-            log.critical('/tmp/audio is not a fifo')
-            exit(1)
 
         def ctrl_c_handler(_, __):
             try:

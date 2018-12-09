@@ -4,6 +4,7 @@ import select
 import time
 import re
 import os
+import stat
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst
@@ -90,11 +91,23 @@ class SourceSpotifyd(util.Threadbase):
 
     def run(self):
         while not self.terminated:
-            fifo = os.open('/tmp/spotifyd', os.O_NONBLOCK | os.O_RDONLY)
-            if fifo <= 0:
-                log.critical('no fifo /tmp/spotifyd, bailing out')
+
+            try:
+                fifo = os.open('/tmp/spotifyd', os.O_NONBLOCK | os.O_RDONLY)
+            except FileNotFoundError:
+                log.critical('fifo /tmp/spotifyd does not exist, source "%s" disabled' % self.name)
                 self.terminate()
-                return
+                continue
+
+            if fifo <= 0:
+                log.critical('could not open /tmp/spotifyd, source "%s" disabled' % self.name)
+                self.terminate()
+                continue
+
+            if not stat.S_ISFIFO(os.stat('/tmp/spotifyd').st_mode):
+                log.critical('fifo /tmp/spotifyd is there but its not a fifo, source "%s" disabled' % self.name)
+                self.terminate()
+                continue
 
             log.info('opened /tmp/spotifyd fifo')
 

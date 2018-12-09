@@ -23,7 +23,7 @@ class WebsocketClient(WebSocket):
 
     def handleConnected(self):
         try:
-            log.debug('new websocket connection from %s' % self.address[0])
+            log.info('new websocket connection from %s' % self.address[0])
             clients.append(self)
             emitter.send_message(self, {'command': 'connected'})
         except Exception as e:

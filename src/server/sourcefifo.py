@@ -4,6 +4,7 @@ import select
 import socket
 import os
 import time
+import stat
 
 
 class SourceFifo(util.Threadbase):
@@ -29,9 +30,20 @@ class SourceFifo(util.Threadbase):
         try:
             while not self.terminated:
 
-                fifo = os.open('/tmp/audio', os.O_NONBLOCK | os.O_RDONLY)
+                try:
+                    fifo = os.open('/tmp/audio', os.O_NONBLOCK | os.O_RDONLY)
+                except FileNotFoundError:
+                    log.critical('fifo /tmp/audio does not exist, source "%s" disabled' % self.name)
+                    self.terminate()
+                    continue
+
                 if fifo <= 0:
-                    log.critical('no fifo /tmp/audio, bailing out')
+                    log.critical('could not open /tmp/audio, source "%s" disabled' % self.name)
+                    self.terminate()
+                    continue
+
+                if not stat.S_ISFIFO(os.stat('/tmp/audio').st_mode):
+                    log.critical('fifo /tmp/audio is there but its not a fifo, source "%s" disabled' % self.name)
                     self.terminate()
                     continue
 

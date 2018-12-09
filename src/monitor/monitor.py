@@ -41,7 +41,7 @@ class Monitor(util.Threadbase):
         result = message['result']
         client = message['from']
 
-        log.info('%s returns %s = %s' % (client, command, result))
+        log.debug('%s returns %s = %s' % (client, command, result))
         websocket.WebSocket.send_message(None,
                                          {'command': 'get_' + command,
                                           'from': client,

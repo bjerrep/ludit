@@ -6,7 +6,7 @@
 <meta charset="utf-8">
 <meta http-equiv="x-ua-compatible" content="ie=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/png" href="../artwork/ludit.png" />
+<link rel="icon" type="image/png" href="ludit.png" />
 
 <script type="text/javascript" src="smoothie.js"></script>
 
@@ -31,87 +31,103 @@
 
 <body>
 <div class="tabs">
-	<nav class="tab-list">
-		<a class="tab active" href="#one">Home</a>
-		<a class="tab" href="#two">Kitchen</a>
-		<a class="tab" href="#three">System</a>
-		<a class="tab" href="#four">Twitse</a>		
-	</nav>
+    <nav class="tab-list">
+        <a class="tab active" href="#one">Home</a>
+        <a class="tab" href="#two">Kitchen</a>
+        <a class="tab" href="#three">System</a>
+        <a class="tab" href="#four">Twitse</a>		
+    </nav>
 
-	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
-	
-	<div id="one" class="tab-content show">
-	
-		<h2>Kitchen</h2>
-		
-		<div class="standard_kitchen_volume1" id="standard_kitchen_volume1"></div>
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+    
+    <div id="one" class="tab-content show">
+    
+        <h2>Kitchen</h2>
+        
+        <div class="standard_kitchen_volume1" id="standard_kitchen_volume1"></div>
 
-		</br>
-		
-		<div id="switch_kitchen_on1"></div>
-	</div>
-	
-	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
-	
-	<div id="two" class="tab-content">
-	
-		<h2>Kitchen</h2>
-		
-		<div class="standard_kitchen_volume2" id="standard_kitchen_volume2"></div>
-		
-		<div class="standard_kitchen_balance1" id="standard_kitchen_balance1"></div>
-		
-		<div class="standard_kitchen_xoverfreq1" id="standard_kitchen_xoverfreq1"></div>
+        </br>
+        
+        <div id="switch_kitchen_on1"></div>
+    </div>
+    
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+    
+    <div id="two" class="tab-content">
+    
+        <h2>Kitchen</h2>
+        
+        <div class="standard_kitchen_volume2" id="standard_kitchen_volume2"></div>
+        
+        <div class="standard_kitchen_balance1" id="standard_kitchen_balance1"></div>
+        
+        <div class="standard_kitchen_xoverfreq1" id="standard_kitchen_xoverfreq1"></div>
 
-		<div class="radio_kitchen_order1" id="radio_kitchen_order1"></div>
+        <div class="radio_kitchen_order1" id="radio_kitchen_order1"></div>
 
-		<div class="standard_kitchen_highlowbalance1" id="standard_kitchen_highlowbalance1"></div>
-		
-		<div class="standard_kitchen_band01" id="standard_kitchen_band01"></div>
-		
-		<div class="standard_kitchen_band11" id="standard_kitchen_band11"></div>
-		
-	</div>
+        <div class="standard_kitchen_highlowbalance1" id="standard_kitchen_highlowbalance1"></div>
+        
+        <div class="standard_kitchen_band01" id="standard_kitchen_band01"></div>
+        
+        <div class="standard_kitchen_band11" id="standard_kitchen_band11"></div>
+        
+    </div>
 
-	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
-	
-	<div id="three" class="tab-content">
-		<h2>System</h2>
-		<div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
-			<div class="m_settings_cell">
-				<input id="restart_all" name="restart_all" type="submit" value="Restart All"/>
-				<input id="reboot" name="reboot" type="submit" value="Reboot"/>
-			</div>
-		</div></div></div></div></div></div>
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+    
+    <div id="three" class="tab-content">
+        <h2>System status</h2>
+        <table id="table_metrics">
+            <caption>Monitor metrics</caption>
+            <thead>
+            <tr>
+                <th>Metric</th>
+                <th>Value</th>
+            </tr>
+            </thead>
+        </table>
+        
+        <h2>Commands</h2>
+        <div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
+            <div class="m_settings_cell">
+                <input id="restart_all" name="restart_all" type="submit" value="Restart All"/>
+                <input id="reboot" name="reboot" type="submit" value="Reboot"/>
+            </div>
+        </div></div></div></div></div></div>
 
-		<table id="table_metrics">
-			<caption>Monitor metrics</caption>
-			<thead>
-			<tr>
-				<th>Metric</th>
-				<th>Value</th>
-			</tr>
-			</thead>
-		</table>
-	</div>
-	
-	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->	
-	
-	<div id="four" class="tab-content">
+    </div>
+    
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->	
+    
+    <div id="four" class="tab-content">
 
-		<h2>Twitse</h2>
-		<div id="info"></div>
-		<canvas id="chart" style="width:100%; height:200px"></canvas>
-		
-		<h3>Device list:</h3>
-		<canvas id="channel_box" width="500" height="150"></canvas>
-		<p>
-			<input type="button" value="50us step response" onclick="CommandTransientTest();" >
-		</p>
-		
-		<div id="wall_offset"></div>
-		<div id="error"></div>
-	</div>
+        <h2>Twitse</h2>
+        <div id="current_offsets_chart_timespan"></div>
+        <canvas id="current_offsets_chart_element" style="width:100%; height:200px"></canvas>
+        
+        <h3>Device list:</h3>
+        <canvas id="channel_box" width="500" height="150"></canvas>
+        
+        <h3>Max delta offset:</h3>
+        <div id="max_offsets_chart_timespan"></div>
+        <canvas id="max_offsets_chart_element" style="width:100%; height:200px"></canvas>
+
+        <p>
+            <input type="button" value="2 Hours" onclick="ButtonHours(2);" >
+            <input type="button" value="Day" onclick="ButtonHours(24);" >
+            <input type="button" value="Week" onclick="ButtonHours(24*7);" >
+        </p>
+        <div id="max_delta_mean"></div>
+        
+        <h3>Commands:</h3>
+        <p>
+            <input type="button" value="50us step response" onclick="CommandTransientTest();" >
+        </p>
+
+                
+        <div id="wall_offset"></div>
+        <div id="error"></div>
+    </div>
 
 </div>
 
@@ -131,284 +147,343 @@ $("#table_metrics").treetable({ expandable: true });
 
 
 <script type="text/javascript">
-	var ludit_saved_configuration = null;
-	var ludit_unsaved_configuration = null;
-	var channels = {};
-	var colors = ['orange', 'yellow', 'green', 'blue', 'purple'];
-	var offsets = {}
-	var next_color = 0;
-	var ms_per_pixel = 2000;
+    var ludit_saved_configuration = null;
+    var ludit_unsaved_configuration = null;
+    var channels = {};
+    var colors = ['orange', 'yellow', 'white', 'blue', 'purple'];
+    var offsets = {}
+    var next_color = 0;
+    var ms_per_pixel = 2000;
+    
+    var smoothie_chart_max_delta = null;
+    var max_delta_time_series = null;
 
-	class ChannelInfo {
-		constructor(name, chart, color) {
-			this._name = name;
-			this._chart = chart;
-			this._status = "online";
-			this._color = color;
-			this._lockstate = "unknown";
-			this._loss = 0.0;
-			this._meanabsdev = 0.0;
-			this._rms = 0.0;
-		}
+    class ChannelInfo {
+        constructor(name, timeseries, color) {
+            this._name = name;
+            this._timeseries = timeseries;
+            this._status = "online";
+            this._color = color;
+            this._lockstate = "unknown";
+            this._loss = 0.0;
+            this._meanabsdev = 0.0;
+            this._rms = 0.0;
+        }
 
-		get timeseries() { return this._chart; }
-		get status() { return this._status; }
-		set status(new_status) { this._status = new_status; }
-		get color() { return this._color; }
-		set lockstate(new_lockstate) { this._lockstate = new_lockstate; }
-		get lockstate() { return this._lockstate; }
-		set loss(new_loss) { this._loss = new_loss; }
-		get loss() { return this._loss; }
-		set meanabsdev(new_meanabsdev) { this._meanabsdev = new_meanabsdev; }
-		get meanabsdev() { return this._meanabsdev; }
-		set rms(new_rms) { this._rms = new_rms; }
-		get rms() { return this._rms; }
-	};
+        get timeseries() { return this._timeseries; }
+        get status() { return this._status; }
+        set status(new_status) { this._status = new_status; }
+        get color() { return this._color; }
+        set lockstate(new_lockstate) { this._lockstate = new_lockstate; }
+        get lockstate() { return this._lockstate; }
+        set loss(new_loss) { this._loss = new_loss; }
+        get loss() { return this._loss; }
+        set meanabsdev(new_meanabsdev) { this._meanabsdev = new_meanabsdev; }
+        get meanabsdev() { return this._meanabsdev; }
+        set rms(new_rms) { this._rms = new_rms; }
+        get rms() { return this._rms; }
+    };
 
-	function update_channel_list() {
-		var c = document.getElementById('channel_box').getContext('2d');
-		var x1 = 10, x2 = 60, x3 = 110, x4 = 180, x5 = 230, x6 = 275, x7 = 310, xlast = x7;
-		var y0 = 30, y = 50;
-		var lineheight = 20;
-		
-		c.fillStyle = "dimgrey";
-		c.fillRect(0, 0, xlast + 100, 150);
-		c.font = 'bold 11px Arial, sans-serif';
+    function update_channel_list() {
+        var c = document.getElementById('channel_box').getContext('2d');
+        var x1 = 10, x2 = 60, x3 = 110, x4 = 180, x5 = 230, x6 = 275, x7 = 310, xlast = x7;
+        var y0 = 30, y = 50;
+        var lineheight = 20;
+        
+        c.fillStyle = "dimgrey";
+        c.fillRect(0, 0, xlast + 100, 150);
+        c.font = 'bold 11px Arial, sans-serif';
 
-		c.fillStyle = "black";
-		c.fillText("Loss%", x4, y0);
-		c.fillText("Offset", x5, y0);
-		c.fillText("AMA", x6, y0);
-		c.fillText("RMS", x7, y0);
-		
-		var keys = Object.keys(channels);
-		for (var i = 0; i < keys.length; i++) {
-			var key = keys[i];
-			var channel_info = channels[key];
-			c.fillStyle = channel_info.color;                
-			var yoff = y + (i * lineheight);
-			c.fillText(key, x1, yoff);
-			c.fillText(channel_info.status, x2, yoff);
-			c.fillText(channel_info.lockstate, x3, yoff);
-			c.fillText(parseFloat(channel_info.loss).toFixed(1), x4, yoff);
-			var offset = offsets[key];
-			if (offset != 'undefined') {
-				c.fillText(parseFloat(offset).toFixed(1), x5, yoff);
-			}
-			c.fillText(parseFloat(channel_info.meanabsdev).toFixed(1), x6, yoff);
-			c.fillText(parseFloat(channel_info.rms).toFixed(1), x7, yoff);
-		}
-	}
+        c.fillStyle = "black";
+        c.fillText("Loss%", x4, y0);
+        c.fillText("Offset", x5, y0);
+        c.fillText("AMA", x6, y0);
+        c.fillText("RMS", x7, y0);
+        
+        var keys = Object.keys(channels);
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
+            var channel_info = channels[key];
+            c.fillStyle = channel_info.color;                
+            var yoff = y + (i * lineheight);
+            c.fillText(key, x1, yoff);
+            c.fillText(channel_info.status, x2, yoff);
+            c.fillText(channel_info.lockstate, x3, yoff);
+            c.fillText(parseFloat(channel_info.loss).toFixed(1), x4, yoff);
+            var offset = offsets[key];
+            if (offset != 'undefined') {
+                c.fillText(parseFloat(offset).toFixed(1), x5, yoff);
+            }
+            c.fillText(parseFloat(channel_info.meanabsdev).toFixed(1), x6, yoff);
+            c.fillText(parseFloat(channel_info.rms).toFixed(1), x7, yoff);
+        }
+    }
 
-	function print_responsives() {
-		var chart = document.getElementById("chart");            
-		var graph_width = chart.clientWidth;
-		var minuttes = ms_per_pixel * graph_width / 60000.0;
-		$("#info").text("Timespan : " + minuttes.toFixed(1) + " min")
-	}
-	
-	print_responsives();
+    function print_responsives() {
+        var chart = document.getElementById("current_offsets_chart_element");            
+        var graph_width = chart.clientWidth;
+        var minuttes = ms_per_pixel * graph_width / 60000.0;
+        $("#current_offsets_chart_timespan").text("Timespan : " + minuttes.toFixed(1) + " min");
+    }
+    
+    print_responsives();
 
-	var smoothie_chart = new SmoothieChart({ 
-		responsive: true, millisPerPixel: ms_per_pixel, millisPerLine:60000,
-		interpolation: 'bezier',
-		maxValue: 100, minValue: -100,
-		grid: { verticalSections: 10,} 
-	});
+    // -------------------------------------------
+    
+    var smoothie_chart = new SmoothieChart({ 
+        responsive: true, millisPerPixel: ms_per_pixel,
+        interpolation: 'bezier',
+        maxValue: 100, minValue: -100,
+        grid: { verticalSections: 10,} 
+    });
 
-	var chart = document.getElementById("chart");                        
-	smoothie_chart.streamTo(chart);
+    var chart = document.getElementById("current_offsets_chart_element");                        
+    smoothie_chart.streamTo(chart);
+    
+    // -------------------------------------------
 
-	update_channel_list();
-	
-	ws_twitse = null;
-	
-	function start_twitse(url) {
+    update_channel_list();
+    
+    ws_twitse = null;
+    
+    function start_twitse(url) {
 
-		if (window["WebSocket"]) {
-			next_color = 0;
-			ws_twitse = new WebSocket(url);
-			ws_twitse.onmessage = function (e) {
-				var obj = JSON.parse(e.data);
-				var command = obj['command'];
-				
-				if (command === "walloffset") {
-					$("#wall_offset").text("Wall offset : " + obj['value'] + " secs");
-					return;
-				}
-				
-				var name = obj['name'];
-				var channel_info = channels[name];
-				
-				if (channel_info === undefined) {
-					var time_series = new TimeSeries();
-					var color = colors[next_color++ % 6];
-					smoothie_chart.addTimeSeries(time_series,
-						{ strokeStyle: color, lineWidth: 3 });
-					channel_info = new ChannelInfo(name, time_series, color);
-					channel_info.status = "online";
-					channels[name] = channel_info;
-				}
-				
-				if (command === "lockstateupdate") {
-					channel_info.lockstate = obj['lockstate']
-				}
-				else if (command === "connection_info") {
-					channel_info.loss = obj['loss']
-				}
-				else {
-					var time = obj['time'];
-					var value = obj['value'];
-					
-					var time_series = channel_info.timeseries;
-					time_series.append(parseInt(time), parseFloat(value));
-					
-					offsets[name] = value;
-					channel_info.meanabsdev = obj['meanabsdev']
-					channel_info.rms = obj['rms']
-					update_channel_list();
-				}
-				update_channel_list();
-			};
-			ws_twitse.onclose = function (e) {
-				channels = {};
-				update_channel_list();
-				check_websockets();
-			};
-			ws_twitse.onopen = function (e) {
-				twitse_send({"command": "get_history"});
-			};
-		} else {
-			$("#error").text("WebSocket init failed")
-		}
-	}
-	
-	ws_ludit = null;
-	var no_configuration_reload = false;
-	
-	function start_ludit(url) {
-		if (window["WebSocket"]) {
-			ws_ludit = new WebSocket(url);
-			ws_ludit.onmessage = function (e) {
-				var obj = JSON.parse(e.data);
-				var command = obj['command'];
-				if (command == "configuration" && !no_configuration_reload) {
-					ludit_saved_configuration = obj['current_conf'];
-					reload_configuration();
-				}
-			};
-			ws_ludit.onclose = function (e) {
-				check_websockets();
-			};
-			ws_ludit.onopen = function (e) {
-				console.log("ludit websocket connected");
-				ludit_send({"command": "get_configuration", "group": "n/a"});
-			};
-		} else {
-			$("#error").text("WebSocket init failed")
-		}
-	}
-	
-	ws_monitor = null;
-	
-	function start_monitor(url) {
-		if (window["WebSocket"]) {
-			ws_monitor = new WebSocket(url);
-			ws_monitor.onmessage = function (e) {
-				var obj = JSON.parse(e.data);
-				var command = obj['command'];
-				var from = obj['from'];
-				var result = obj['result'];
-				if (command == "get_cputemperature")
-					add_metric('temperature', 'cputemperature', from, result);
-				else if (command == "get_uptime")
-					add_metric('computers', 'uptime', from, result);
-				else if (command == "get_loadaverages")
-					add_metric('computers', 'loadaverages', from, result);
-				else if (command == "get_cpuload")
-					add_metric('computers', 'cpuload', from, result);
-				else if (command == "get_ip")
-					add_metric('network', 'ip', from, result);
-				else if (command == "get_wifi_stats")
-					add_metric('network', 'wifi', from, result);
-				else if (command == "get_bluetooth_clients")
-					var metrics = JSON.parse(result); // cant handle multiple clients
-					add_metric('bluetooth', 'clients', 'name', metrics['name']);
-					add_metric('bluetooth', 'clients', 'address', metrics['address']);
-					add_metric('bluetooth', 'clients', 'rssi', metrics['rssi']);
-			};
-			ws_monitor.onclose = function (e) {
-				check_websockets();
-			};
-			ws_monitor.onopen = function (e) {
-				console.log("ludit monitor connected");
-				monitor_metrics_refresh();
-				monitor_send({"command": "get_ip", "group": "n/a"});
-			};
-		} else {
-			$("#error").text("WebSocket init failed")
-		}
-	}
-	
-	var interval = 100;
-	var index = 0;
-	var metrics_timer = setInterval(monitor_metrics_refresh, interval);
-	
-	function monitor_metrics_refresh() {
-		switch(index++) {
-			case 0: monitor_send({"command": "get_cputemperature", "group": "n/a"}); return;
-			case 1: monitor_send({"command": "get_loadaverages", "group": "n/a"}); return;
-			case 2: monitor_send({"command": "get_cpuload", "group": "n/a"}); return;
-			case 3: monitor_send({"command": "get_uptime", "group": "n/a"}); return;
-			case 4: monitor_send({"command": "get_wifi_stats", "group": "n/a"}); return;
-			case 5: twitse_send( {"command": "get_wall_offset"}); return;
-			case 6: monitor_send({"command": "get_bluetooth_clients"}); return;
-		}
-		if (interval < 2000) {
-			interval = 2000;
-			clearInterval(metrics_timer);
-			metrics_timer = setInterval(monitor_metrics_refresh, interval);
-		}
-		index = 0;
-	}
-	
-	
-	function check_websockets() {
-		if (!ws_ludit || ws_ludit.readyState === WebSocket.CLOSED) {
-			start_ludit(ws_url("ludit", 45658));
-			start_monitor(ws_url("ludit", 45659));
-			start_twitse(ws_url("ludit", 12343));
-		}
-	}
-	setInterval(check_websockets, 10000);
-	check_websockets();
+        if (window["WebSocket"]) {
+            next_color = 0;
+            ws_twitse = new WebSocket(url);
+            
+            ws_twitse.onmessage = function (e) {
+                var obj = JSON.parse(e.data);
+                var command = obj['command'];
+                
+                if (command === "walloffset") {
+                    $("#wall_offset").text("Wall offset : " + obj['value'] + " secs");
+                    return;
+                }
+                
+                if (command === "max_delta_offset_history") {
+                    var time = JSON.parse(obj['time']);
+                    var value = JSON.parse(obj['value']);
+                    for(var i=0; i < time.length; i++) {
+                        max_delta_time_series.append(time[i], value[i]);
+                    }
+                    $("#max_delta_mean").text("Max delta: average = " + obj['mean_us'].toFixed(1) + " us, peak = " + obj['peak_us'].toFixed(1) + " us");
+                }
+                else if (command === "max_delta_offset") {
+                    max_delta_time_series.append(obj['time'], obj['value']);
+                    $("#max_delta_mean").text("Max delta: average = " + obj['mean_us'].toFixed(1) + " us, peak = " + obj['peak_us'].toFixed(1) + " us");
+                }
+                else {
+                    var name = obj['name'];
+                    var channel_info = channels[name];
+                    
+                    if (channel_info === undefined) {
+                        var time_series = new TimeSeries();
+                        var color = colors[next_color++ % 6];
+                        smoothie_chart.addTimeSeries(time_series, { strokeStyle: color, lineWidth: 3 });
+                        channel_info = new ChannelInfo(name, time_series, color);
+                        channel_info.status = "online";
+                        channels[name] = channel_info;
+                    }
+                    
+                    if (command === "lockstateupdate") {
+                        channel_info.lockstate = obj['lockstate']
+                    }
+                    else if (command === "connection_info") {
+                        channel_info.loss = obj['loss']
+                    }
+                    else if (command === "current_offset") {
+                        var time = obj['time'];
+                        var value = obj['value'];
+                        
+                        var time_series = channel_info.timeseries;
+                        time_series.append(parseInt(time), parseFloat(value));
+                        
+                        offsets[name] = value;
+                        channel_info.meanabsdev = obj['meanabsdev']
+                        channel_info.rms = obj['rms']
+                        update_channel_list();
+                    }
+                }
+            };
+            ws_twitse.onclose = function (e) {
+                channels = {};
+                update_channel_list();
+                check_websockets();
+            };
+            ws_twitse.onopen = function (e) {
+                twitse_send({"command": "get_history"});
+            };
+        } else {
+            $("#error").text("WebSocket init failed")
+        }
+    }
+    
+    ws_ludit = null;
+    var no_configuration_reload = false;
+    
+    function start_ludit(url) {
+        if (window["WebSocket"]) {
+            ws_ludit = new WebSocket(url);
+            ws_ludit.onmessage = function (e) {
+                var obj = JSON.parse(e.data);
+                var command = obj['command'];
+                if (command == "configuration" && !no_configuration_reload) {
+                    ludit_saved_configuration = obj['current_conf'];
+                    reload_configuration();
+                }
+            };
+            ws_ludit.onclose = function (e) {
+                check_websockets();
+            };
+            ws_ludit.onopen = function (e) {
+                console.log("ludit websocket connected");
+                ludit_send({"command": "get_configuration", "group": "n/a"});
+            };
+        } else {
+            $("#error").text("WebSocket init failed")
+        }
+    }
 
-	function ludit_send(dict) {
-		if (!ws_ludit)
-			return;
-		var jsn = JSON.stringify(dict);
-		ws_ludit.send(jsn);
-	}
+    ws_monitor = null;
 
-	function monitor_send(dict) {
-		if (!ws_monitor)
-			return;
-		var jsn = JSON.stringify(dict);
-		ws_monitor.send(jsn);
-	}
+    function start_monitor(url) {
+        if (window["WebSocket"]) {
+            ws_monitor = new WebSocket(url);
+            ws_monitor.onmessage = function (e) {
+                var obj = JSON.parse(e.data);
+                var command = obj['command'];
+                var from = obj['from'];
+                var result = obj['result'];
+                if (command == "get_cputemperature")
+                    add_metric('temperature', 'cputemperature', from, result);
+                else if (command == "get_uptime")
+                    add_metric('computers', 'uptime', from, result);
+                else if (command == "get_loadaverages")
+                    add_metric('computers', 'loadaverages', from, result);
+                else if (command == "get_cpuload")
+                    add_metric('computers', 'cpuload', from, result);
+                else if (command == "get_ip")
+                    add_metric('network', 'ip', from, result);
+                else if (command == "get_wifi_stats")
+                    add_metric('network', 'wifi', from, result);
+                else if (command == "get_bluetooth_clients") {
+                    var metrics = JSON.parse(result); // cant handle multiple clients
+                    add_metric('bluetooth', 'clients', 'name', metrics['name']);
+                    add_metric('bluetooth', 'clients', 'address', metrics['address']);
+                    add_metric('bluetooth', 'clients', 'rssi', metrics['rssi']);
+                }
+            };
+            ws_monitor.onclose = function (e) {
+                check_websockets();
+            };
+            ws_monitor.onopen = function (e) {
+                console.log("ludit monitor connected");
+                monitor_metrics_refresh();
+                monitor_send({"command": "get_ip", "group": "n/a"});
+            };
+        } else {
+            $("#error").text("WebSocket init failed")
+        }
+    }
 
-	function twitse_send(dict) {
-		if (!ws_twitse)
-			return;
-		var jsn = JSON.stringify(dict);
-		ws_twitse.send(jsn);
-	}
+    var interval = 100;
+    var index = 0;
+    var metrics_timer = setInterval(monitor_metrics_refresh, interval);
+    
+    function monitor_metrics_refresh() {
+        switch(index++) {
+            case 0: monitor_send({"command": "get_cputemperature", "group": "n/a"}); return;
+            case 1: monitor_send({"command": "get_loadaverages", "group": "n/a"}); return;
+            case 2: monitor_send({"command": "get_cpuload", "group": "n/a"}); return;
+            case 3: monitor_send({"command": "get_uptime", "group": "n/a"}); return;
+            case 4: monitor_send({"command": "get_wifi_stats", "group": "n/a"}); return;
+            case 5: twitse_send( {"command": "get_wall_offset"}); return;
+            case 6: monitor_send({"command": "get_bluetooth_clients"}); return;
+        }
+        if (interval < 2000) {
+            interval = 2000;
+            clearInterval(metrics_timer);
+            metrics_timer = setInterval(monitor_metrics_refresh, interval);
+        }
+        index = 0;
+    }
+        
+    function check_websockets() {
+        if (!ws_ludit || ws_ludit.readyState === WebSocket.CLOSED) {
+            start_ludit(ws_url("ludit", 45658));
+        }
+        if (!ws_monitor || ws_monitor.readyState === WebSocket.CLOSED) {
+            start_monitor(ws_url("ludit", 45659));
+        }
+        if (!ws_twitse || ws_twitse.readyState === WebSocket.CLOSED) {
+            start_twitse(ws_url("ludit", 12343));
+        }
+    }
+    setInterval(check_websockets, 10000);
+    check_websockets();
+    
+    function start_max_delta_chart() {
+        var _max_delta_chart = document.getElementById("max_offsets_chart_element");
+        // nonRealtimeData: false  limitFPS: 0
+        smoothie_chart_max_delta = new SmoothieChart({ 
+            responsive: true, enableDpiScaling: false, limitFPS: 1, scaleSmoothing: 1, nonRealtimeData: false,
+            interpolation: 'bezier',
+            maxValue: 100, minValue: 0,
+            grid: { verticalSections: 10 } 
+        });
+        smoothie_chart_max_delta.streamTo(_max_delta_chart);
+        
+        max_delta_time_series = new TimeSeries();
+        smoothie_chart_max_delta.addTimeSeries(
+            max_delta_time_series, 
+            { strokeStyle: "orange", fillStyle: "orange", lineWidth: 1 });
+        
+        ButtonHours(24);
+    }
+    setTimeout(start_max_delta_chart, 5000);
 
-	function CommandTransientTest() {
-		twitse_send({"command": "transient_test", "group": "n/a"});
-	}
+    function ludit_send(dict) {
+        if (!ws_ludit)
+            return;
+        var jsn = JSON.stringify(dict);
+        ws_ludit.send(jsn);
+    }
 
-</script>	
+    function monitor_send(dict) {
+        if (!ws_monitor)
+            return;
+        var jsn = JSON.stringify(dict);
+        ws_monitor.send(jsn);
+    }
+
+    function twitse_send(dict) {
+        if (!ws_twitse)
+            return;
+        var jsn = JSON.stringify(dict);
+        ws_twitse.send(jsn);
+    }
+
+    function CommandTransientTest() {
+        twitse_send({"command": "transient_test", "group": "n/a"});
+    }
+
+    function ButtonHours(hours) {
+        var _max_delta_chart = document.getElementById("max_offsets_chart_element");
+        var timespan_ms = 1000 * 60 * 60 * hours;
+        var ms_per_pix = timespan_ms / _max_delta_chart.clientWidth;
+        smoothie_chart_max_delta.options.millisPerPixel = ms_per_pix;
+        
+        if (hours == 7*24)
+            $("#max_offsets_chart_timespan").text("Timespan : Week");
+        else if (hours == 24)
+            $("#max_offsets_chart_timespan").text("Timespan : Day");
+        else
+            $("#max_offsets_chart_timespan").text("Timespan : " + hours + " Hour(s)");
+        twitse_send( {"command": "get_max_delta_history"});
+    }
+
+</script>
 
 
 <script>
@@ -420,8 +495,9 @@ $(document).ready(function() {
     $("#reboot").click(function(){
         monitor_send({"command": "reboot"});
     }); 
-});
-
+});    
+   
+    
 </script>
 
 </body>

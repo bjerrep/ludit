@@ -5,7 +5,7 @@ handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s %(levelname)s (%(module)-10.10s) %(message)s\033[0m')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 RESET = '\033[0m'
 GREY = '\033[0;37m'

@@ -11,5 +11,5 @@ The standard spotifyd configuration defining the aloop loopback as soundcard. Mo
 
     write_spotifyd_fifo.sh
  
-The ./systemd/ludit_spotifyd.service expects this script to be located here.
+The ./systemd/ludit_spotifyd.service expects this script to be located here as it is.
     

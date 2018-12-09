@@ -13,7 +13,7 @@ class MulticastSocket(util.Threadbase):
         self.multicast_ip = ip
         self.multicast_port = port
         self.multicast_group = (ip, port)
-        log.debug('starting multicast socket at %s:%i' % (ip, port))
+        log.info('starting multicast socket at %s:%i' % (ip, port))
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

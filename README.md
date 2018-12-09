@@ -20,7 +20,7 @@ Here is a list of the Ludit specific processes running on the server and on the 
 
 ### Server
 
-**BlueALSA** ([github](https://github.com/Arkq/bluez-alsa))
+**BlueALSA** ([BlueALSA fork](https://github.com/bjerrep/bluez-alsa))
 If it wasn't for bluealsa this page would probably have looked quite different. Makes it a breeze to get a A2DP audio sink running (once Bluetooth is running that is).
 
 **Ludit server** (python, this repository)
@@ -45,7 +45,13 @@ Allows the Monitor to restart processes on the client and to get useless but gee
 
 
 **Twitse** ([github](https://github.com/bjerrep/twitse))
-Runs on both server and client to get their time in true sync. 
+Runs on both server and client to get their time in true sync.
+
+### Status
+
+Ludit is playing and have done so for a while. This does not mean that it isn't buggy, only that it works in a stationary setup with exactly two clients always available. A test with a single client, where two where expected from the configuration, only showed that this remains to be implemented properly. So there is one way to make Ludit work, and most likely infinitely many ways to make it fail.
+
+### Requirements
 
 Some of the requirements for the whole enterprise are python 3, the python libs [connectable](https://github.com/timothycrosley/connectable) & [simple-websocket-server](https://github.com/dpallot/simple-websocket-server) and last but not least, gstreamer. 
 
