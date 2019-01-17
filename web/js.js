@@ -125,34 +125,30 @@ function add_slider(legend, group, type, serial, serials, value, min, max) {
 
 /////////////////////// radio ///////////////////////
 
-$('#radio_kitchen_order1').on('change', function() {
-	var index = $('.kitchen_order1:checked').val();
-	console.log(index);
-	call_server("kitchen", "xoverpoles", index);
-});
-
 function insert_radio_html(group, type, serial) {      
 	var gts = group + '_' + type + serial;
-	
 	var name_class = 'name="' + gts + '" class="' + gts + '" ';
+    var pageid = '#page2';
 	
-html = '<fieldset>\
-<legend>Filter order: </legend>\
-<label for="filter-1">2 \
-<input type="radio" ' + name_class + ' id="filter-1" value="2"></label>\
-<label for="filter-2">4 \
-<input type="radio" ' + name_class + ' id="filter-2" value="4"></label>\
-<label for="filter-3">8 \
-<input type="radio" ' + name_class + ' id="filter-3" value="8"></label>\
-</fieldset>';
-	
-	document.getElementById("radio_" + gts).innerHTML = html;
+    html = '<br><fieldset>\
+            <legend>Filter order: </legend>\
+            <label for="filter-2">2 \
+            <input type="radio" ' + name_class + ' id="filter-2" value="2"></label>\
+            <label for="filter-4">4 \
+            <input type="radio" ' + name_class + ' id="filter-4" value="4"></label>\
+            <label for="filter-8">8 \
+            <input type="radio" ' + name_class + ' id="filter-8" value="8"></label>\
+            </fieldset>';
+        
+    existing = $(pageid).html();
+    $(pageid).html(existing + html);
 }
 
 function set_radio_value(group, type, value) {
 	var serial = 1;
 	var gts = group + '_' + type + serial;
-	$('.kitchen_order1').filter('[value=' + value + ']').prop('checked', true);
+    var option = document.getElementById("filter-" + value);
+    option.checked = true;
 }
 
 function add_radio(group, type, serial, serials, value) {
@@ -165,28 +161,54 @@ function add_radio(group, type, serial, serials, value) {
 
 /////////////////////// switch ///////////////////////
 
-function add_switch(group, ident, serial, is_on) {
-	var key = "switch_" + group + "_" + ident + serial;
-	$("#" + key).btnSwitch({
+// fixit, callback doesnt work for any but the last switch on a page
+
+function add_switch(group, ident, serial, command, ontext, offtext, is_on) {
+	var key = group + "_" + ident + serial;
+	$("#standard_" + key).btnSwitch({
 		_group: group,
 		_ident: ident,
+		_command: command,
 		ToggleState: is_on,
 		OnValue: true,
+        OffValue: false,
+		OnText: ontext,
+		OffText: offtext,
 		OnCallback: function(val) {
 			console.log(this._group + " " + this._ident + " = " + val);
-			ludit_send({"command": "set_on", "group": this._group, "value": val});
+			ludit_send({"command": this._command, "group": this._group, "value": val});
 		},
-		OffValue: false,
 		OffCallback: function (val) {
-			//val = val.toString();
 			console.log(this._group + " " + this._ident + " = " + val);
-			ludit_send({"command": "set_on", "group": this._group, "value": val});
+			ludit_send({"command": this._command, "group": this._group, "value": val});
 		}
 	});
 }
 
 
 /////////////////////// loading ///////////////////////
+
+
+function insert_title_html(legend, page) {      
+    var pageid = '#page' + page;
+    
+    html = '<h2>' + legend + '</h2>';
+    
+    existing = $(pageid).html();
+    $(pageid).html(existing + html);
+}
+
+
+function insert_extended_html(group, type, serial, page) {
+    var gts = 'standard_' + group + '_' + type + serial;
+    var pageid = '#page' + page;
+
+    html ='<div class="' + gts + '" id="' + gts + '"></div>'
+
+    existing = $(pageid).html();
+    $(pageid).html(existing + html);
+}
+
 
 // Add a node to the 'metric' treetable or update an existing one
 
@@ -225,29 +247,64 @@ function add_metric(root, sub, text, value) {
 
 
 function reload_configuration() {
+    $("#page1").html('chrome mobile');
 	var grps = ludit_saved_configuration['groups'];
-	
+    $("#page1").html('');
+    $("#page2").html('');
+    
 	for (group of grps) {
+        var name = group['name'];
+        insert_title_html(group['legend'], 2);
+
 		if (group['enabled']) {
-			var name = group['name'];
+
+            insert_title_html(group['legend'], 1);
+
+            insert_extended_html(name, "volume", 1, 1);
+            insert_extended_html(name, "volume", 2, 2);
 			add_slider('Volume', name, "volume", 1, 2, group['volume'], 0.0, 100.0);
 			add_slider('Volume', name, "volume", 2, 2, group['volume'], 0, 100);
-			add_switch(name, "on", 1, group["on"]);
+            
+            insert_extended_html(name, "on", 1, 1);
+			add_switch(name, "on", 1, "set_on", "On", "Off", group["on"]);
+            
+            insert_extended_html(name, "balance", 1, 2);
 			add_slider('Balance', name, "balance", 1, 1, group['balance'], -100, 100);
-			add_slider('Crossover frequency', name, "xoverfreq", 1, 1, group['xoverfreq'], 300, 3000);
+            
+            insert_extended_html(name, "xoverfreq", 1, 2);
+            add_slider('Crossover frequency', name, "xoverfreq", 1, 1, group['xoverfreq'], 300, 3000);
+            
 			add_radio(name, "order", 1, 1, group['xoverpoles']);
-			add_slider('Low/high balance', name, "highlowbalance", 1, 1, group['highlowbalance'], -1, 1);
-			var eq_legends = ['Band 0 : 29Hz', 'Band 1 : 59Hz'];
+            
+            insert_extended_html(name, "highlowbalance", 1, 2);
+            add_slider('Low/high balance', name, "highlowbalance", 1, 1, group['highlowbalance'], -1, 1);
+            
+            var eq_legends = ['Band 1 : 29Hz', 'Band 2 : 59Hz', 'Band 3 : 119Hz', 'Band 4 : 237Hz', 'Band 5 : 474Hz',
+                              'Band 6 : 947Hz', 'Band 7 : 1889Hz', 'Band 8 : 3770Hz', 'Band 9 : 7523Hz', 'Band 10 : 15011Hz'];
 			for (const [ key, value ] of Object.entries(group['equalizer'])) {
 				var gain = parseFloat(value);
+                insert_extended_html(name, "band" + key, 1, 2);
 				add_slider(eq_legends[parseInt(key)], name, "band" + key, 1, 1, gain, -12, 12);
 			}
 		}
+
+        insert_extended_html(name, "enable", 1, 2);
+        add_switch(name, "enable", 1, "set_enabled", "Enable", "Disable", group['enabled']);
 	}
+
+    for (group of grps) {
+        var name = group['name'];
+        if (group['enabled']) {
+            set_radio_value(name, "order", group['xoverpoles']);
+        }
+    }
 }
 
-
 $(document).ready(function() {
-
+    document.addEventListener('click',function(e) {
+        elem = e.target.className.split("_");
+        if (e.target && elem[1] == 'order1') {
+            call_server(elem[0], "xoverpoles", e.target.value);
+        }
+    });
 });
-

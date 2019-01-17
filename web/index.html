@@ -41,38 +41,19 @@
     <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
     
     <div id="one" class="tab-content show">
-    
-        <h2>Kitchen</h2>
-        
-        <div class="standard_kitchen_volume1" id="standard_kitchen_volume1"></div>
-
-        </br>
-        
-        <div id="switch_kitchen_on1"></div>
+        <div class="page1" id="page1"></div>
     </div>
     
     <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
     
     <div id="two" class="tab-content">
-    
-        <h2>Kitchen</h2>
-        
-        <div class="standard_kitchen_volume2" id="standard_kitchen_volume2"></div>
-        
-        <div class="standard_kitchen_balance1" id="standard_kitchen_balance1"></div>
-        
-        <div class="standard_kitchen_xoverfreq1" id="standard_kitchen_xoverfreq1"></div>
-
-        <div class="radio_kitchen_order1" id="radio_kitchen_order1"></div>
-
-        <div class="standard_kitchen_highlowbalance1" id="standard_kitchen_highlowbalance1"></div>
-        
-        <div class="standard_kitchen_band01" id="standard_kitchen_band01"></div>
-        
-        <div class="standard_kitchen_band11" id="standard_kitchen_band11"></div>
-        
+        <div class="page2" id="page2"></div>
+     
+        <p>
+           <input type="button" value="Save" onclick="SaveCurrentConfiguration();" >
+        </p>
     </div>
-
+    
     <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
     
     <div id="three" class="tab-content">
@@ -113,7 +94,7 @@
         <canvas id="max_offsets_chart_element" style="width:100%; height:200px"></canvas>
 
         <p>
-            <input type="button" value="2 Hours" onclick="ButtonHours(2);" >
+            <input type="button" value="6 Hours" onclick="ButtonHours(6);" >
             <input type="button" value="Day" onclick="ButtonHours(24);" >
             <input type="button" value="Week" onclick="ButtonHours(24*7);" >
         </p>
@@ -154,10 +135,20 @@ $("#table_metrics").treetable({ expandable: true });
     var offsets = {}
     var next_color = 0;
     var ms_per_pixel = 2000;
+    var hours = 24;
     
     var smoothie_chart_max_delta = null;
     var max_delta_time_series = null;
+    var _max_delta_chart = null;
 
+    // https://stackoverflow.com/a/41818235
+    try {
+        var ludit_setup = JSON.parse($.getJSON({'url': "ludit_local.json", 'async': false}).responseText);
+    }
+    catch(err) {
+       alert("Missing file: 'ludit_local.json' not found. Make a local copy of 'ludit_local.json.template'");
+    }
+    
     class ChannelInfo {
         constructor(name, timeseries, color) {
             this._name = name;
@@ -240,6 +231,22 @@ $("#table_metrics").treetable({ expandable: true });
     var chart = document.getElementById("current_offsets_chart_element");                        
     smoothie_chart.streamTo(chart);
     
+    smoothie_chart_max_delta = new SmoothieChart({ 
+        responsive: true, enableDpiScaling: false, limitFPS: 1, scaleSmoothing: 1, nonRealtimeData: false,
+        interpolation: 'bezier',
+        maxValue: 100, minValue: 0,
+        grid: { verticalSections: 10 } 
+    });
+    
+    _max_delta_chart = document.getElementById("max_offsets_chart_element");
+    smoothie_chart_max_delta.options.millisPerPixel = 200000;        
+    smoothie_chart_max_delta.streamTo(_max_delta_chart);
+    max_delta_time_series = new TimeSeries();
+    smoothie_chart_max_delta.addTimeSeries(
+        max_delta_time_series, 
+        { strokeStyle: "orange", fillStyle: "orange", lineWidth: 1 });
+    max_delta_time_series.append(0, 0);
+    
     // -------------------------------------------
 
     update_channel_list();
@@ -257,13 +264,14 @@ $("#table_metrics").treetable({ expandable: true });
                 var command = obj['command'];
                 
                 if (command === "walloffset") {
-                    $("#wall_offset").text("Wall offset : " + obj['value'] + " secs");
+                    $("#wall_offset").text("NTP wall offset : " + obj['value'] + " secs");
                     return;
                 }
                 
                 if (command === "max_delta_offset_history") {
                     var time = JSON.parse(obj['time']);
                     var value = JSON.parse(obj['value']);
+                    max_delta_time_series.clear();
                     for(var i=0; i < time.length; i++) {
                         max_delta_time_series.append(time[i], value[i]);
                     }
@@ -309,10 +317,12 @@ $("#table_metrics").treetable({ expandable: true });
             ws_twitse.onclose = function (e) {
                 channels = {};
                 update_channel_list();
-                check_websockets();
+                ws_twitse = null;
             };
             ws_twitse.onopen = function (e) {
+                console.log('twitse websocket connected');
                 twitse_send({"command": "get_history"});
+                
             };
         } else {
             $("#error").text("WebSocket init failed")
@@ -334,11 +344,11 @@ $("#table_metrics").treetable({ expandable: true });
                 }
             };
             ws_ludit.onclose = function (e) {
-                check_websockets();
+                ws_ludit = null;
             };
             ws_ludit.onopen = function (e) {
                 console.log("ludit websocket connected");
-                ludit_send({"command": "get_configuration", "group": "n/a"});
+                ludit_send({"command": "get_configuration"});
             };
         } else {
             $("#error").text("WebSocket init failed")
@@ -375,7 +385,7 @@ $("#table_metrics").treetable({ expandable: true });
                 }
             };
             ws_monitor.onclose = function (e) {
-                check_websockets();
+                ws_monitor = null;
             };
             ws_monitor.onopen = function (e) {
                 console.log("ludit monitor connected");
@@ -410,44 +420,25 @@ $("#table_metrics").treetable({ expandable: true });
     }
         
     function check_websockets() {
-        if (!ws_ludit || ws_ludit.readyState === WebSocket.CLOSED) {
-            start_ludit(ws_url("ludit", 45658));
+        if (!ws_ludit) {
+            start_ludit(ws_url(ludit_setup["ludit"]["address"], ludit_setup["ludit"]["port"]));
         }
-        if (!ws_monitor || ws_monitor.readyState === WebSocket.CLOSED) {
-            start_monitor(ws_url("ludit", 45659));
+        if (!ws_monitor) {
+            start_monitor(ws_url(ludit_setup["monitor"]["address"], ludit_setup["monitor"]["port"]));
         }
-        if (!ws_twitse || ws_twitse.readyState === WebSocket.CLOSED) {
-            start_twitse(ws_url("ludit", 12343));
+        if (!ws_twitse) {
+            start_twitse(ws_url(ludit_setup["twitse"]["address"], ludit_setup["twitse"]["port"]));
         }
     }
     setInterval(check_websockets, 10000);
-    check_websockets();
+    setTimeout(check_websockets, 100);
     
-    function start_max_delta_chart() {
-        var _max_delta_chart = document.getElementById("max_offsets_chart_element");
-        // nonRealtimeData: false  limitFPS: 0
-        smoothie_chart_max_delta = new SmoothieChart({ 
-            responsive: true, enableDpiScaling: false, limitFPS: 1, scaleSmoothing: 1, nonRealtimeData: false,
-            interpolation: 'bezier',
-            maxValue: 100, minValue: 0,
-            grid: { verticalSections: 10 } 
-        });
-        smoothie_chart_max_delta.streamTo(_max_delta_chart);
-        
-        max_delta_time_series = new TimeSeries();
-        smoothie_chart_max_delta.addTimeSeries(
-            max_delta_time_series, 
-            { strokeStyle: "orange", fillStyle: "orange", lineWidth: 1 });
-        
-        ButtonHours(24);
-    }
-    setTimeout(start_max_delta_chart, 5000);
 
     function ludit_send(dict) {
-        if (!ws_ludit)
+        if (!ws_ludit || ws_ludit.readyState != WebSocket.OPEN)
             return;
         var jsn = JSON.stringify(dict);
-        ws_ludit.send(jsn);
+        setTimeout(ws_ludit.send(jsn), 0);
     }
 
     function monitor_send(dict) {
@@ -458,7 +449,7 @@ $("#table_metrics").treetable({ expandable: true });
     }
 
     function twitse_send(dict) {
-        if (!ws_twitse)
+        if (!ws_twitse || ws_twitse.readyState != WebSocket.OPEN)
             return;
         var jsn = JSON.stringify(dict);
         ws_twitse.send(jsn);
@@ -468,38 +459,53 @@ $("#table_metrics").treetable({ expandable: true });
         twitse_send({"command": "transient_test", "group": "n/a"});
     }
 
-    function ButtonHours(hours) {
-        var _max_delta_chart = document.getElementById("max_offsets_chart_element");
-        var timespan_ms = 1000 * 60 * 60 * hours;
-        var ms_per_pix = timespan_ms / _max_delta_chart.clientWidth;
-        smoothie_chart_max_delta.options.millisPerPixel = ms_per_pix;
-        
-        if (hours == 7*24)
+    function start_max_delta_chart() {
+        console.log('start_max_delta_chart');
+        twitse_send( {"command": "get_max_delta_history"});
+        ButtonHours(24);
+    }
+    
+    function ButtonHours(_hours) {
+        if (_hours == 7*24)
             $("#max_offsets_chart_timespan").text("Timespan : Week");
-        else if (hours == 24)
+        else if (_hours == 24)
             $("#max_offsets_chart_timespan").text("Timespan : Day");
         else
-            $("#max_offsets_chart_timespan").text("Timespan : " + hours + " Hour(s)");
-        twitse_send( {"command": "get_max_delta_history"});
+            $("#max_offsets_chart_timespan").text("Timespan : " + _hours + " Hour(s)");
+        hours = _hours
+
+        if (window._max_delta_chart && window._max_delta_chart.clientWidth > 0) {
+                    var _max_delta_chart = document.getElementById("max_offsets_chart_element");
+                    var timespan_ms = 1000 * 60 * 60 * hours;
+                    var ms_per_pix = timespan_ms / window._max_delta_chart.clientWidth;
+                    smoothie_chart_max_delta.options.millisPerPixel = ms_per_pix;
+        }
     }
 
-</script>
+    function SaveCurrentConfiguration() {
+        ludit_send({"command": "save_current_configuration"});
+    }
+    
+    // fails on android firefox
+    var ro = new ResizeObserver( entries => {
+            if (window._max_delta_chart && window._max_delta_chart.clientWidth > 0) {
+            console.log('settimeout on start_max_delta_chart');
+            start_max_delta_chart();
+            }
+        });
 
-
-<script>
-
-$(document).ready(function() {
-    $("#restart_all").click(function(){
-        monitor_send({"command": "restart_all"});
-    }); 
-    $("#reboot").click(function(){
-        monitor_send({"command": "reboot"});
-    }); 
-});    
-   
+    ro.observe(max_offsets_chart_element);
+    
+    $(document).ready(function() {
+        $("#restart_all").click(function() {
+            monitor_send({"command": "restart_all"});
+        }); 
+        $("#reboot").click(function() {
+            monitor_send({"command": "reboot"});
+        }); 
+    });    
     
 </script>
 
 </body>
 </html>
-

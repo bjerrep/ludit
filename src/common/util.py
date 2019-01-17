@@ -109,3 +109,7 @@ class ColdstartException(Exception):
 
 class AudioClosedException(Exception):
     pass
+
+
+class DeviceException(Exception):
+    pass

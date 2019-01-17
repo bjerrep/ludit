@@ -6,16 +6,15 @@ import time
 
 
 class PlaySequencer(util.Base):
-    signals = ('clientdisconnected',)
+    signals = ('allgroupsdisconnected')
     m_state = group.State.STOPPED
     m_buffer_count = 0
     groups = {}
+    connected_groups = []
 
     def __init__(self, jsn):
+        self.jsn = jsn
         for group_jsn in jsn['groups']:
-            if not group_jsn['enabled']:
-                log.info('group %s is disabled' % group_jsn['name'])
-                continue
             group_jsn['playdelay'] = jsn['playdelay']
             group_jsn['buffersize'] = jsn['buffersize']
 
@@ -23,30 +22,33 @@ class PlaySequencer(util.Base):
             log.debug('playsequencer, adding group "%s"' % group_name)
             self.audio_timeout = float(jsn['audiotimeout'])
             _group = group.Group(group_jsn)
-            _group.connect('clientdisconnected', self.client_disconnected)
-            _group.connect('status', self.status)
+            _group.connect('groupconnected', self.slot_connected)
+            _group.connect('groupdisconnected', self.slot_disconnected)
+            _group.connect('status', self.slot_group_status)
             self.groups.update({group_name: _group})
+            if not group_jsn['enabled']:
+                log.info(' - group %s is currently disabled' % group_jsn['name'])
 
         self.starvation_pause = False
         self.client_buffering_ready = False
-
-    def ready(self):
-        try:
-            for _group in self.playing_groups():
-                if not _group.ready_to_play():
-                    return False
-            return True
-        except:
-            return False
+        log.info('playsequencer ready with the groups %s' % ', '.join([g for g in self.groups.keys()]))
 
     def terminate(self):
         for _group in self.groups.values():
             _group.terminate()
 
-    def client_disconnected(self, source):
-        self.emit('clientdisconnected', source)
+    def slot_connected(self, group):
+        log.info('group %s connected' % group.name())
+        self.connected_groups.append(group)
 
-    def status(self, state):
+    def slot_disconnected(self, group):
+        self.connected_groups.remove(group)
+        log.info('group %s disconnected' % group.name())
+        if not self.connected_groups:
+            log.info('all groups disconnected, no connected devices left')
+            self.emit('allgroupsdisconnected')
+
+    def slot_group_status(self, state):
         if state in ('buffered', 'starved'):
             if self.m_state == group.State.BUFFERING and state == 'buffered':
                 log.info('------ playing -------')
@@ -56,14 +58,20 @@ class PlaySequencer(util.Base):
                 self.state_changed(group.State.STOPPED)
 
     def current_configuration(self):
-        config = []
+        config = {}
+        groups = []
         for _group in self.groups.values():
-            config.append(_group.get_configuration())
-        return {'groups': config}
+            groups.append(_group.get_configuration())
+
+        config['groups'] = groups
+        config['playdelay'] = self.jsn['playdelay']
+        config['buffersize'] = self.jsn['buffersize']
+        config['audiotimeout'] = self.jsn['audiotimeout']
+        return config
 
     def send_to_groups(self, packet):
         for _group in self.playing_groups():
-            _group.send_all(packet)
+            _group.send(packet)
 
     def set_codec(self, codec):
         self.send_to_groups({'command': 'setcodec', 'codec': codec})
@@ -86,7 +94,7 @@ class PlaySequencer(util.Base):
             now = time.time()
             for _group in self.playing_groups():
                 if new_state == group.State.BUFFERING:
-                    _group.send_all({'command': 'buffering'})
+                    _group.send({'command': 'buffering'})
                 elif new_state == group.State.STOPPED:
                     _group.stop_playing()
                 elif new_state == group.State.PLAYING:
@@ -96,7 +104,7 @@ class PlaySequencer(util.Base):
             self.m_state = new_state
 
     def playing_groups(self):
-        return [group for group in self.groups.values() if group.on()]
+        return [group for group in self.groups.values() if group.ready_to_play()]
 
     def new_audio(self, audio):
 

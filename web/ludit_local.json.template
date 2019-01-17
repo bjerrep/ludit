@@ -1,0 +1,5 @@
+{
+    "ludit" : {"address": "ludit", "port": 45658},
+    "monitor" : {"address": "ludit", "port": 45659},
+    "twitse" : {"address": "ludit", "port": 12343}
+}

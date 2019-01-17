@@ -73,7 +73,7 @@ class Remote(util.Threadbase):
             result = str(-1)
 
         if result:
-            log.info('%s returns %s = %s' % (self.id, command, result))
+            log.debug('%s returns %s = %s' % (self.id, command, result))
             self.multicast.send({
                 'command': command,
                 'to': 'server',

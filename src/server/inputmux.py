@@ -24,6 +24,11 @@ class InputMux(util.Threadbase):
         super(InputMux, self).__init__(name='inputmux  ')
         self.queue = queue.Queue()
 
+        self.log_first_audio = LOG_FIRST_AUDIO_COUNT
+        self.now_playing = None
+        self.timeout_counter = None
+        self.audio_buffer = bytearray()
+
         self.sourcefifo = sourcefifo.SourceFifo()
         self.sourcefifo.connect("event", self.input_event)
         self.sourcetcp = sourcetcp.SourceTCP()
@@ -31,10 +36,6 @@ class InputMux(util.Threadbase):
         self.sourcespotifyd = sourcespotifyd.SourceSpotifyd()
         self.sourcespotifyd.connect("event", self.input_event)
 
-        self.log_first_audio = LOG_FIRST_AUDIO_COUNT
-        self.now_playing = None
-        self.timeout_counter = None
-        self.audio_buffer = bytearray()
         threading.Thread(target=self.gst_mainloop_thread).start()
         self.start()
 

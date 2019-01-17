@@ -6,4 +6,6 @@ doc
 
 src/*.cfg
 
-src/export.sh
+src/export*
+
+ludit_local.json

@@ -28,6 +28,7 @@ class BufferState(Enum):
 class Channel(Enum):
     LEFT = 0
     RIGHT = 1
+    STEREO = 2
 
 
 class Player(util.Threadbase):
@@ -38,7 +39,6 @@ class Player(util.Threadbase):
     last_queue = None
     m_state = State.STOPPED
     log_first_audio = LOG_FIRST_AUDIO_COUNT
-    channel = None
     buffer_state = BufferState.MONITOR_STARTING
     last_status_time = None
     monitor_lock = threading.Lock()  # experimental
@@ -50,14 +50,16 @@ class Player(util.Threadbase):
     gain = 1.0
 
     codec = 'pcm'
-    volume = 0.01
-    balance = 1.0
+    master_channel_volumes = [0.0, 0.0]
+    balance = 0.0
     highlowbalance = 0.0
     xoverfreq = 1000
     xoverpoles = 4
-    band0 = 0.0
-    band1 = 0.0
+    eq_bands = 10
+    eq_band_gain = [0.0] * eq_bands
     user_volume = 0.3
+    channel_list = []
+    alsa_hw_device = {}
 
     message_inhibit_time = time.time()
 
@@ -112,33 +114,43 @@ class Player(util.Threadbase):
             log.critical("unknown codec '%s'" % self.codec)
 
         try:
-            master_volume = max(0.0005, self.user_volume * self.gain * self.balance)
-
             lo, hi = self.calculate_highlowbalance(self.highlowbalance)
+            self.set_volume(None)
 
             pipeline = (
                 'appsrc name=audiosource emit-signals=true max-bytes=%i ! %s '
-                'audioconvert ! audio/x-raw,format=F32LE,channels=2 ! queue ! deinterleave name=d '
-                'd.src_%s ! tee name=t '
-                'interleave name=i ! capssetter caps = audio/x-raw,channels=2,channel-mask=0x3 ! '
-                'audioconvert ! audioresample ! queue name=lastqueue max-size-time=20000000000 ! '
-                'volume name=vol volume=%f ! autoaudiosink name=audiosink sync=true '
-                't.src_0 ! queue ! audiocheblimit poles=%i name=lowpass mode=low-pass cutoff=%f ! '
-                'equalizer-10bands name=equalizer band0=%f band1=%f ! volume name=lowvol volume=%f ! i.sink_0 '
-                't.src_1 ! queue ! audiocheblimit poles=%i name=highpass mode=high-pass cutoff=%f ! '
-                'volume name=highvol volume=%f ! i.sink_1 ' %
-                (buffer_size, decoding,
-                 self.channel,
-                 master_volume,
-                 self.xoverpoles, self.xoverfreq, self.band0, self.band1, lo,
-                 self.xoverpoles, self.xoverfreq, hi))
+                'audioconvert ! audio/x-raw,format=F32LE,channels=2 ! queue ! deinterleave name=d ' %
+                (buffer_size, decoding))
+
+            for channel in self.channel_list:
+                try:
+                    eq_band_gains = ''.join(
+                        ['band%i=%f ' % (band, self.eq_band_gain[band]) for band in range(self.eq_bands)])
+                    eq_setup = 'equalizer-10bands name=equalizer%s %s ' % (channel, eq_band_gains)
+                except Exception as e:
+                    log.info('equalizer setup failed with %s' % str(e))
+                    eq_setup = ''
+
+                pipeline += (
+                    'd.src_%s ! tee name=t%s '
+                    'interleave name=i%s ! capssetter caps = audio/x-raw,channels=2,channel-mask=0x3 ! '
+                    'audioconvert ! audioresample ! queue name=lastqueue%s max-size-time=20000000000 ! '
+                    'volume name=vol%s volume=%f ! alsasink sync=true %s '
+                    't%s.src_0 ! queue ! audiocheblimit poles=%i name=lowpass%s mode=low-pass cutoff=%f ! '
+                    '%s ! volume name=lowvol%s volume=%f ! i%s.sink_0 '
+                    't%s.src_1 ! queue ! audiocheblimit poles=%i name=highpass%s mode=high-pass cutoff=%f ! '
+                    'volume name=highvol%s volume=%f ! i%s.sink_1 ' %
+                    (channel, channel, channel, channel, channel,
+                     self.master_channel_volumes[int(channel)], self.alsa_hw_device[channel],
+                     channel, self.xoverpoles, channel, self.xoverfreq, eq_setup, channel, lo, channel,
+                     channel, self.xoverpoles, channel, self.xoverfreq, channel, hi, channel))
 
             # print(pipeline)
 
             log.info('launching pipeline ...')
             self.pipeline = Gst.parse_launch(pipeline)
             self.source = self.pipeline.get_by_name('audiosource')
-            self.last_queue = self.pipeline.get_by_name('lastqueue')
+            self.last_queue = self.pipeline.get_by_name('lastqueue' + self.channel_list[0])
 
             bus = self.pipeline.get_bus()
             bus.add_signal_watch()
@@ -150,30 +162,29 @@ class Player(util.Threadbase):
         except Exception as e:
             log.critical("couldn't construct pipeline, %s" % str(e))
 
-    def set_volume(self, volume=None):
+    def set_volume(self, volume):
         if volume:
             self.user_volume = volume
-        # the pipeline stops if the volume is zero ?
-        _master_volume = max(0.0005, self.user_volume * self.gain * self.balance)
-        if volume:
-            log.debug('setting pipeline volume %f (user volume %f)' %
-                      (_master_volume, self.user_volume))
 
-        if self.pipeline:
-            master_volume = self.pipeline.get_by_name('vol')
-            master_volume.set_property('volume', _master_volume)
+        for channel in self.channel_list:
+            channel_int = int(channel)
+            balance = 1.0
+            if channel_int == 0 and self.balance > 0.0:
+                balance = 1.0 - self.balance
+            elif channel_int == 1 and self.balance < 0.0:
+                balance = 1.0 + self.balance
+
+            channel_vol = max(0.0005, self.user_volume * self.gain * balance)
+            self.master_channel_volumes[channel_int] = channel_vol
+            if self.pipeline:
+                volume_element = self.pipeline.get_by_name('vol%s' % channel)
+                volume_element.set_property('volume', channel_vol)
 
     # fixit, should be constant power
     def set_balance(self, balance):
-        self.balance = 1.0
-        if self.channel == Channel.LEFT.value and balance > 0.0:
-            self.balance = 1.0 - balance
-        elif self.channel == Channel.RIGHT.value and balance < 0.0:
-            self.balance = 1.0 + balance
-
+        self.balance = balance
         log.debug('setting balance %.2f' % self.balance)
-
-        self.set_volume()
+        self.set_volume(None)
 
     def calculate_highlowbalance(self, highlowbalance):
         self.highlowbalance = highlowbalance
@@ -194,7 +205,9 @@ class Player(util.Threadbase):
             self.construct_pipeline()
 
         elif command == 'setvolume':
-            self.set_volume(int(message['volume']) / 127.0)
+            volume = int(message['volume']) / 127.0
+            log.debug('setting volume %.4f' % volume)
+            self.set_volume(volume)
 
         elif command == 'buffering':
             self.log_first_audio = LOG_FIRST_AUDIO_COUNT
@@ -220,9 +233,29 @@ class Player(util.Threadbase):
             """
 
             play_time = float(message['playtime'])
-            # here the time precision goes out the window
-            play_delay_ns = (play_time - time.time()) * 1000000000
-            self.pipeline.set_base_time(self.pipeline.get_pipeline_clock().get_time() + play_delay_ns)
+            play_time_ns = play_time * 1000000000
+
+            # here the time precision is about to go out the window in the call to set_base_time. If and when we
+            # are preempted then the timing can be off in the millisecond range which is by any standards super awful.
+            # The loop is an attempt to get some kind of deterministic execution time.
+            target_time_us = 37 # found empirically on an overclocked rpi 3B+
+            target_window_us = 0.2
+
+            for i in range(151):
+                gst_setup_start = time.time()
+                self.pipeline.set_base_time(self.pipeline.get_pipeline_clock().get_time() + play_time_ns - time.time() * 1000000000)
+                gst_setup_elapsed_us = (time.time() - gst_setup_start) * 1000000
+                if (gst_setup_elapsed_us > target_time_us - i * target_window_us and
+                    gst_setup_elapsed_us < target_time_us + i * target_window_us):
+                    break
+
+            setup_message = 'time setup took %.3f us in %i tries' % (gst_setup_elapsed_us, i)
+            if i != 150:
+                log.info(setup_message)
+            else:
+                log.error(setup_message)
+
+            play_delay_ns = play_time_ns - time.time() * 1000000000
 
             self.pipeline.set_start_time(Gst.CLOCK_TIME_NONE)
 
@@ -257,12 +290,31 @@ class Player(util.Threadbase):
     def configure_pipeline(self, message):
         channel = message.get('channel')
         if channel:
-            self.channel = int(channel)
-            log.info("processing setup '%s'. Channel=%i" % (message.get('name'), self.channel))
+            channel = Channel[channel.upper()]
+            self.channel_list = []
+            log.info("processing setup '%s'. %s" % (message.get('name'), channel))
+            if channel == Channel.LEFT or channel == Channel.STEREO:
+                self.channel_list.append('0')
+                device = message.get('left_device')
+                if device:
+                    self.alsa_hw_device['0'] = "device=%s" % device
+                    log.debug("left alsa device is %s" % device)
+                else:
+                    self.alsa_hw_device['0'] = ''
+            if channel == Channel.RIGHT or channel == Channel.STEREO:
+                self.channel_list.append('1')
+                device = message.get('right_device')
+                if device:
+                    self.alsa_hw_device['1'] = "device=%s" % device
+                    log.debug("right alsa device is %s" % device)
+                else:
+                    self.alsa_hw_device['1'] = ''
 
         volume = message.get('volume')
         if volume:
-            self.set_volume(float(volume) / 100.0)
+            volume = float(volume) / 100.0
+            log.debug('setting volume %.4f' % volume)
+            self.set_volume(volume)
 
         balance = message.get('balance')
         if balance:
@@ -275,50 +327,46 @@ class Player(util.Threadbase):
             log.debug('setting high/low balance %.1f (low %.5f high %.5f)' %
                       (highlowbalance, lo, hi))
             if self.pipeline:
-                self.pipeline.get_by_name('highvol').set_property('volume', hi)
-                self.pipeline.get_by_name('lowvol').set_property('volume', lo)
+                for channel in self.channel_list:
+                    self.pipeline.get_by_name('highvol' + channel).set_property('volume', hi)
+                    self.pipeline.get_by_name('lowvol' + channel).set_property('volume', lo)
 
         xoverfreq = message.get('xoverfreq')
         if xoverfreq:
             log.debug('setting xover frequency %s' % xoverfreq)
             self.xoverfreq = float(xoverfreq)
             if self.pipeline:
-                xlow = self.pipeline.get_by_name('lowpass')
-                xlow.set_property('cutoff', self.xoverfreq)
-                xhigh = self.pipeline.get_by_name('highpass')
-                xhigh.set_property('cutoff', self.xoverfreq)
+                for channel in self.channel_list:
+                    xlow = self.pipeline.get_by_name('lowpass' + channel)
+                    xlow.set_property('cutoff', self.xoverfreq)
+                    xhigh = self.pipeline.get_by_name('highpass' + channel)
+                    xhigh.set_property('cutoff', self.xoverfreq)
 
         xoverpoles = message.get('xoverpoles')
         if xoverpoles:
             log.debug('setting xover poles %s' % xoverpoles)
             self.xoverpoles = int(xoverpoles)
             if self.pipeline:
-                xlow = self.pipeline.get_by_name('lowpass')
-                xlow.set_property('poles', self.xoverpoles)
-                xhigh = self.pipeline.get_by_name('highpass')
-                xhigh.set_property('poles', self.xoverpoles)
+                for channel in self.channel_list:
+                    xlow = self.pipeline.get_by_name('lowpass' + channel)
+                    xlow.set_property('poles', self.xoverpoles)
+                    xhigh = self.pipeline.get_by_name('highpass' + channel)
+                    xhigh.set_property('poles', self.xoverpoles)
 
         """
-        band 0 : 29Hz
-        band 1 : 59Hz
+        Center frequencies 29 59 119 237 474 947 1889 3770 7523 15011
         """
         equalizer = message.get('equalizer')
         if equalizer:
-            att = equalizer.get('0')
-            if att:
-                self.band0 = float(att)
-                log.debug('setting eqband0 %f' % self.band0)
-                if self.pipeline:
-                    eq = self.pipeline.get_by_name('equalizer')
-                    eq.set_property('band0', self.band0)
-
-            att = equalizer.get('1')
-            if att:
-                self.band1 = float(att)
-                log.debug('setting eqband1 %f' % self.band1)
-                if self.pipeline:
-                    eq = self.pipeline.get_by_name('equalizer')
-                    eq.set_property('band1', self.band1)
+            for band in range(self.eq_bands):
+                att = equalizer.get(str(band))
+                if att:
+                    self.eq_band_gain[band] = float(att)
+                    log.debug('setting equalizer band %i to %f' % (band, self.eq_band_gain[band]))
+                    if self.pipeline:
+                        for channel in self.channel_list:
+                            eq = self.pipeline.get_by_name('equalizer' + channel)
+                            eq.set_property('band%i' % band, self.eq_band_gain[band])
 
         buffersize = message.get('buffersize')
         if buffersize:
@@ -333,6 +381,8 @@ class Player(util.Threadbase):
             playtime_skew = (time.time() - self.playing_start_time) - duration_secs
             log.info("playing time %.3f sec, buffered %i bytes. Skew %.6f" %
                      (duration_secs, buffer_size, playtime_skew))
+        except NameError:
+            return True
         except Exception as e:
             log.error('internal error %s' % str(e))
             return True

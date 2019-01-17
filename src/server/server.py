@@ -10,6 +10,7 @@ import time
 import signal
 import argparse
 import queue
+import logging
 import sys
 import json
 import threading
@@ -17,15 +18,22 @@ import threading
 
 class Server(util.Threadbase):
 
-    def __init__(self, configuration):
+    def __init__(self, configuration_file):
         super(Server, self).__init__(name='server    ')
-        self.configuration = configuration
+
+        self.configuration_file = configuration_file
+        self.configuration = None
+        self.load_configuration()
+
         self.play_sequencer = None
         self.play_thread_active = True
         self.cant_play_warning = 5
         self.delayed_broadcast = None
 
         self.input_mux = inputmux.InputMux()
+
+        log.info('starting server at %s' % util.local_ip())
+        self.launch_playsequencer()
 
         self.multicast = multicast.Server(util.multicast_ip, util.multicast_port)
         self.multicast.connect('server_receive', self.multicast_rx)
@@ -46,35 +54,66 @@ class Server(util.Threadbase):
         super().terminate()
         log.debug('server terminated')
 
-    def client_disconnected(self, source):
-        log.error('connection lost to %s' % source)
+    def load_configuration(self):
+        try:
+            with open(self.configuration_file) as f:
+                self.configuration = json.loads(f.read())
+            log.info('loaded configuration %s' % self.configuration_file)
+        except:
+            log.warning('no configuration file specified (--cfg), using template configuration')
+            self.configuration = generate_config()
+
+    def save_configuration(self):
+        try:
+            with open(self.configuration_file, 'w') as f:
+                f.write(json.dumps(self.play_sequencer.current_configuration(), indent=4, default=lambda x : str(x)))
+            log.info('saved configuration in %s' % self.configuration_file)
+        except Exception as e:
+            log.warning('save configuration failed (see --cfg) - %s' % str(e))
+
+    def all_groups_disconnected(self):
+        log.error('playsequenser reports that all groups (and devices) have disconnected')
         self.play_thread_active = False
 
     def multicast_rx(self, message):
-        command = message['command']
-        if command == 'get_server_socket':
-            device = message['from']
-            groupname, devicename = device.split(':')
-            endpoint = self.play_sequencer.get_group(groupname).get_device(devicename).get_endpoint()
-            log.debug('sending tcp socket endpoint %s to device %s' % (str(endpoint), device))
+        device = "unknown"
+        try:
+            command = message['command']
+            if command == 'get_server_socket':
+                device = message['from']
+                groupname, devicename = device.split(':')
+                endpoint = self.play_sequencer.get_group(groupname).get_device(devicename).get_endpoint()
+                log.debug('sending tcp socket endpoint %s to device %s' % (str(endpoint), device))
+                self.multicast.send({'command': 'server_socket',
+                                     'from': 'server',
+                                     'to': device,
+                                     'endpoint': str(endpoint)})
+        except Exception as e:
+            log.error('connection failed from unknown device %s (%s)' % (device, str(e)))
             self.multicast.send({'command': 'server_socket',
                                  'from': 'server',
                                  'to': device,
-                                 'endpoint': str(endpoint)})
+                                 'endpoint': "None"})
 
     def websocket_rx(self, message):
         command = message['command']
-        group = message['group']
 
         if command == 'get_configuration':
             self.broadcast_new_configuration()
             return
+        elif command == 'save_current_configuration':
+            self.save_configuration()
+            return
 
+        group = message['group']
         value = message['value']
 
         if command == 'set_on':
             log.info('ws: setting %s on/off to %s' % (group, value))
             self.play_sequencer.get_group(group).set_param('on', value)
+        elif command == 'set_enabled':
+            log.info('ws: setting %s enabled to %s' % (group, value))
+            self.play_sequencer.get_group(group).set_param('enabled', value)
         elif command == 'set_volume':
             log.info('ws: setting %s volume to %s' % (group, value))
             self.play_sequencer.get_group(group).set_param('volume', value)
@@ -90,12 +129,10 @@ class Server(util.Threadbase):
         elif command == 'set_highlowbalance':
             log.info('ws: setting %s high/low balance to %s' % (group, value))
             self.play_sequencer.get_group(group).set_param('highlowbalance', value)
-        elif command == 'set_band0':
-            log.info('ws: setting %s band0 to %s' % (group, value))
-            self.play_sequencer.get_group(group).set_param_array('equalizer', '0', value)
-        elif command == 'set_band1':
-            log.info('ws: setting %s band1 to %s' % (group, value))
-            self.play_sequencer.get_group(group).set_param_array('equalizer', '1', value)
+        elif command.startswith('set_band'):
+            band = command[8:]
+            log.info('ws: setting %s band %s to %s' % (group, band, value))
+            self.play_sequencer.get_group(group).set_param_array('equalizer', band, value)
         else:
             log.error('ws: got unknown command %s' % command)
 
@@ -129,16 +166,13 @@ class Server(util.Threadbase):
                 self.play_sequencer.terminate()
 
             self.play_sequencer = playsequencer.PlaySequencer(self.configuration)
-            self.play_sequencer.connect('clientdisconnected', self.client_disconnected)
+            self.play_sequencer.connect('allgroupsdisconnected', self.all_groups_disconnected)
             self.cant_play_warning = 5
         except Exception as e:
             log.critical('playsequencer failed with %s' % str(e))
 
     def run(self):
         try:
-            log.info('starting server at %s' % util.local_ip())
-            self.launch_playsequencer()
-
             while not self.terminated:
                 try:
                     key, value = self.input_mux.queue.get(timeout=0.1)
@@ -155,24 +189,25 @@ class Server(util.Threadbase):
                 else:
                     log.critical('got an unknown key %s' % key)
 
-        except:
+        except Exception as e:
+            log.critical("server loop caught exception '%s'" % str(e))
             self.terminate()
 
         log.debug('server exits')
 
 
 def generate_config():
-    device_left = {
+    kitchen_device_left = {
         'name': 'left',
-        'channel': '0'
+        'channel': 'left'
     }
-    device_right = {
+    kitchen_device_right = {
         'name': 'right',
-        'channel': '1'
+        'channel': 'right'
     }
-    devices = [device_left, device_right]
 
     kitchen = {
+        'legend': 'Kitchen',
         'name': 'kitchen',
         'enabled': True,
         'on': True,
@@ -181,20 +216,28 @@ def generate_config():
         'highlowbalance': '-0.45',
         'xoverfreq': '1300',
         'xoverpoles': '4',
-        'devices': devices,
-        'equalizer': {'0': '12.0', '1': '10'}
+        'devices': [kitchen_device_left, kitchen_device_right],
+        'equalizer': {'0': '12.0', '1': '10.0', '2': '0.0'}
+    }
+
+    stereo_device = {
+        'name': 'stereo',
+        'channel': 'stereo',
+        'left_device': 'hw:0',
+        'right_device': 'hw:1'
     }
 
     stereo = {
+        'legend': 'Stereo',
         'name': 'stereo',
         'enabled': False,
-        'on': False,
+        'on': True,
         'volume': '100.0',
         'balance': '0.0',
         'highlowbalance': '0.0',
         'xoverfreq': '1200',
         'xoverpoles': '4',
-        'devices': devices,
+        'devices': [stereo_device],
         'equalizer': {'0': '8.0', '1': '4.0'}
     }
 
@@ -217,20 +260,18 @@ def start():
                             help='dump template configuration file to stdout')
         parser.add_argument('--cfg', dest='cfg',
                             help='configuration file to use')
+        parser.add_argument('--verbose', action='store_true',
+                            help='enable more logging')
+
         results = parser.parse_args()
+
+        if results.verbose:
+            log.setLevel(logging.DEBUG)
 
         if results.newcfg:
             config = json.dumps(generate_config(), indent=4, sort_keys=True)
             print(config)
             exit(0)
-
-        if results.cfg:
-            with open(results.cfg) as f:
-                config = json.loads(f.read())
-            log.info('loaded configuration %s' % results.cfg)
-        else:
-            log.warning('no configuration file specified (--cfg), using template configuration')
-            config = generate_config()
 
         def ctrl_c_handler(_, __):
             try:
@@ -250,7 +291,7 @@ def start():
         signal.signal(signal.SIGPIPE, ignore)
 
         _server = None
-        _server = Server(config)
+        _server = Server(results.cfg)
         _server.join()
         log.info('server exiting')
 

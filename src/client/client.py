@@ -3,6 +3,7 @@ from client import player
 from common import util
 from common import multicast
 from common.log import logger as log
+import logging
 import sys
 import time
 import signal
@@ -52,8 +53,13 @@ class Client(util.Threadbase):
         command = message['command']
         if command == 'server_socket':
             if not self.socket:
-                log.info('server found, connecting to %s' % message['endpoint'])
-                self.server_endpoint = util.split_tcp(message['endpoint'])
+                endpoint = message['endpoint']
+                if endpoint == "None":
+                    log.critical("server refused the connection (check the --id)")
+                    time.sleep(1)
+                    exit(1)
+                log.info('server found, connecting to %s' % endpoint)
+                self.server_endpoint = util.split_tcp(endpoint)
                 self.start_socket()
 
     def slot_player_status(self, message):
@@ -95,6 +101,7 @@ class Client(util.Threadbase):
         self.socket_lock.release()
 
     def server_connector(self):
+        delay = 0.1
         while not self.terminated:
             if self.terminate_socket:
                 self.socket_lock.acquire()
@@ -103,6 +110,7 @@ class Client(util.Threadbase):
                     self.socket.join()
                     self.socket = None
                 self.server_endpoint = None
+                self.player.process_message({'command': 'stopping'})
                 log.info('waiting for server connection')
                 self.server_offline_counter = 10
                 self.socket_lock.release()
@@ -116,7 +124,13 @@ class Client(util.Threadbase):
                 self.multicast.send({'command': 'get_server_socket',
                                      'to': 'server',
                                      'from': self.id})
-            time.sleep(1)
+                if delay < 5.0:
+                    delay += 0.1
+            else:
+                delay = 0.1
+
+            time.sleep(delay)
+
         log.debug('server connector exits')
         return False
 
@@ -133,7 +147,13 @@ def start():
         parser = argparse.ArgumentParser('Ludit client')
         parser.add_argument('--id', action='store', dest='id',
                             help='required identifier in the form groupname:devicename', required=True)
+        parser.add_argument('--verbose', action='store_true',
+                            help='enable more logging')
+
         results = parser.parse_args()
+
+        if results.verbose:
+            log.setLevel(logging.DEBUG)
 
         try:
             groupname, devicename = results.id.split(':')

@@ -4,31 +4,35 @@ from server import server_socket
 
 
 class Device(util.Base):
-    signals = ('clientconnected', 'clientdisconnected', 'message')
+    """
+    A device in the server maintain the connection to a remote client. Its called device in the server rather than
+    client in an attempt to minimize confusion when working in the source files.
+    """
+    signals = ('deviceconnected', 'devicedisconnected', 'message')
 
     def __init__(self, devicename, groupname):
         self.jsn = {}
         self.devicename = devicename
         self.connected = False
         self.id = util.make_id(groupname, self.devicename)
-        self.socket = server_socket.ServerSocket(self.id)
-        self.socket.connect('clientconnected', self.client_connected)
-        self.socket.connect('brokensocket', self.broken_socket)
-        self.socket.connect('message', self.message)
         self._state = None
+        self.start_socket()
+
+    def __hash__(self):
+        return hash(self.id)
 
     def terminate(self):
         self.socket.terminate()
         # don't leave before the socket is gone in order to avoid stray messages
         self.socket.join()
 
-    def get_clientname(self):
+    def name(self):
         return self.devicename
 
     def state(self):
         return self._state
 
-    def message(self, msg):
+    def slot_message(self, msg):
         msg['clientname'] = self.devicename
         if msg['command'] == 'status':
             state = msg['state']
@@ -36,24 +40,28 @@ class Device(util.Base):
                 self._state = state
         self.emit('message', msg)
 
-    def client_connected(self):
+    def slot_connected(self):
         log.info('[%s] sending configuration' % self.id)
         _configuration = dict(self.jsn)
         _configuration['command'] = 'configuration'
         self.socket.send(_configuration)
         self.connected = True
-        self.emit('clientconnected')
+        self.emit('deviceconnected', self)
 
-    def broken_socket(self):
+    def slot_disconnected(self):
         self.connected = False
-        self.emit('clientdisconnected', self.id)
+        self.emit('devicedisconnected', self)
 
-    def is_connected(self):
-        return self.connected
+    def start_socket(self):
+        self.socket = server_socket.ServerSocket(self.id)
+        self.socket.connect('deviceconnected', self.slot_connected)
+        self.socket.connect('devicedisconnected', self.slot_disconnected)
+        self.socket.connect('message', self.slot_message)
 
     def get_endpoint(self):
         return self.socket.get_endpoint()
 
     def set_param(self, param):
         self.jsn.update(param)
-        self.socket.send(param)
+        if self.connected:
+            self.socket.send(param)

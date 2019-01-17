@@ -8,7 +8,7 @@ import time
 
 
 class ServerSocket(util.Threadbase):
-    signals = ('message', 'brokensocket', 'clientconnected')
+    signals = ('message', 'devicedisconnected', 'deviceconnected')
 
     def __init__(self, id):
         super(ServerSocket, self).__init__(name='serversoc ')
@@ -27,7 +27,7 @@ class ServerSocket(util.Threadbase):
                 log.critical(str(e) + ' - cant start')
                 raise e
         except Exception as e:
-            log.critical('serversocket caught %s' % str(e))
+            log.critical('serversocket %s caught %s' % (self.id, str(e)))
 
         self.start()
 
@@ -36,9 +36,12 @@ class ServerSocket(util.Threadbase):
 
     def send(self, packet):
         if self.connection:
-            if type(packet) == dict:
-                packet = datapacket.pack_json(packet)
-            self.connection.sendall(packet)
+            try:
+                if type(packet) == dict:
+                    packet = datapacket.pack_json(packet)
+                self.connection.sendall(packet)
+            except Exception as e:
+                log.warning('serversocket %s send caught %s' % (self.id, str(e)))
 
     def run(self):
         log.debug('starting serversocket at %s for %s' %
@@ -60,7 +63,7 @@ class ServerSocket(util.Threadbase):
                         log.info('>>> client connected from ' + str(addr))
                         self.connection.settimeout(1.0)
                         connected = True
-                        self.emit('clientconnected')
+                        self.emit('deviceconnected')
                     except socket.timeout:
                         time.sleep(0.1)
                         raise util.ExpectedException
@@ -100,12 +103,13 @@ class ServerSocket(util.Threadbase):
             except util.TerminatedException:
                 break
             except (BrokenPipeError, util.ClosedException):
-                self.emit('brokensocket', self.id)
                 connected = False
+                self.emit('devicedisconnected', self.id)
             except Exception as e:
                 if connected:
                     log.error('>>> client connection lost "%s"' % str(e))
                     connected = False
+                    self.emit('devicedisconnected', self.id)
                 else:
                     log.error('exception: ' + str(e))
 

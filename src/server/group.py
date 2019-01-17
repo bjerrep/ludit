@@ -3,7 +3,6 @@ from server import device
 from common.log import logger as log
 from enum import Enum
 import threading
-import json
 
 
 class State(Enum):
@@ -13,10 +12,11 @@ class State(Enum):
 
 
 class Group(util.Base):
-    signals = ('clientdisconnected', 'status')
+    signals = ('groupconnected', 'groupdisconnected', 'status')
 
     def __init__(self, jsn):
         self.devices = []
+        self.connected_devices = []
         self.jsn = jsn
         self.play_delay = float(jsn['playdelay'])
         self.groupname = jsn["name"]
@@ -27,71 +27,70 @@ class Group(util.Base):
             _device = device.Device(device_json['name'], self.groupname)
             if not _device.socket.is_alive():
                 raise util.ColdstartException
-            _device.connect('clientdisconnected', self.client_disconnected)
-            _device.connect('message', self.client_message)
+            _device.connect('devicedisconnected', self.slot_device_disconnected)
+            _device.connect('deviceconnected', self.slot_device_connected)
+            _device.connect('message', self.slot_message)
             complete_json = device_json.copy()
             complete_json.update(jsn)
             _device.set_param(complete_json)
             self.devices.append(_device)
 
+    def name(self):
+        return self.groupname
+
     def get_device(self, devicename):
         for _device in self.devices:
-            if _device.get_clientname() == devicename:
+            if _device.name() == devicename:
                 return _device
+        log.info("group failed to find device %s", devicename)
+        raise util.DeviceException
 
     def ready_to_play(self):
-        for _device in self.devices:
-            if not _device.is_connected():
-                return False
-        return True
+        # group can play as long as just a single client is connected
+        return self.connected_devices
 
-    def on(self):
-        return self.jsn['on']
+    def get_devices(self):
+        return self.devices
 
     def start_playing(self, now):
         play_time = now + self.play_delay
-        self.send_all({'command': 'playing', 'playtime': str(play_time)})
+        self.send({'command': 'playing', 'playtime': str(play_time)})
 
     def stop_playing(self):
-        self.send_all({'command': 'stopping'})
+        self.send({'command': 'stopping'})
 
     def terminate(self):
         for _device in self.devices:
             _device.terminate()
 
-    def client_disconnected(self, source):
-        self.emit('clientdisconnected', source)
-
-    def get_configuration(self):
-        config = self.jsn.copy()
-        config.pop('devices', None)
-        return config
-
-    def set_param(self, key, value):
-        if key == 'on':
-            self.jsn[key] = value
-            if not value:
-                self.stop_playing()
+    def slot_device_connected(self, device):
+        if device not in self.connected_devices:
+            self.connected_devices.append(device)
+            log.info('connected to %s:%s' % (self.groupname, device.name()))
+            if len(self.connected_devices) == 1:
+                self.emit('groupconnected', self)
         else:
-            self.jsn[key] = float(value)
-            self.send_all({'command': 'configuration', key: value})
+            log.error('%s already registered as connected' % device.name())
 
-    def set_param_array(self, name, key, value):
-        self.jsn[name][key] = float(value)
-        self.send_all({'command': 'configuration', name: {key: value}})
-        print(json.dumps(self.jsn, indent=4, sort_keys=True))
+    def slot_device_disconnected(self, device):
+        if device in self.connected_devices:
+            self.connected_devices.remove(device)
+            log.info('disconnected from %s' % device.name())
+            if not self.ready_to_play():
+                self.emit('groupdisconnected', self)
+        else:
+            log.error('%s disconnected while not connected' % device.name())
 
-    def client_message(self, msg):
+    def slot_message(self, msg):
         self.lock.acquire()
         command = msg['command']
         clientname = msg['clientname']
         id = util.make_id(self.groupname, clientname)
         if command == 'time':
-            log.debug("[%s] epoch is %s" %
-                      (id, msg['epoch']))
+            log.debug("[%s] epoch is %s" % (id, msg['epoch']))
         elif command == 'status':
             state = msg['state']
-            for _device in self.devices:
+            for _device in self.connected_devices:
                 if _device.state() != state:
                     self.lock.release()
                     return
@@ -100,6 +99,24 @@ class Group(util.Base):
             log.debug('[%s] got %s ?' % (id, command))
         self.lock.release()
 
-    def send_all(self, packet):
-        for _device in self.devices:
+    def get_configuration(self):
+        config = self.jsn.copy()
+        #fixit config.pop('devices', None)
+        return config
+
+    def set_param(self, key, value):
+        if key in ('on', 'enabled'):
+            self.jsn[key] = value
+            if not value:
+                self.stop_playing()
+        else:
+            self.jsn[key] = float(value)
+            self.send({'command': 'configuration', key: value})
+
+    def set_param_array(self, name, key, value):
+        self.jsn[name][key] = float(value)
+        self.send({'command': 'configuration', name: {key: value}})
+
+    def send(self, packet):
+        for _device in self.connected_devices:
             _device.socket.send(packet)

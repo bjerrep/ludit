@@ -50,6 +50,7 @@ Runs on both server and client to get their time in true sync.
 ### Status
 
 Ludit is playing and have done so for a while. This does not mean that it isn't buggy, only that it works in a stationary setup with exactly two clients always available. A test with a single client, where two where expected from the configuration, only showed that this remains to be implemented properly. So there is one way to make Ludit work, and most likely infinitely many ways to make it fail.
+Also something like volume control are left in a state where it is possible to turn it up and down but where the absolute resulting volume is useless until some magic values are inserted here and there in the source files. Consider yourself warned.
 
 ### Requirements
 
