@@ -37,9 +37,21 @@ $(".tab-list").on("click", ".tab", function(e) {
 });
 
 
+var pending_key = null;
+var pending_command = null;
+
+function flush_pending() {
+	ludit_send(pending_command);
+	pending_key = null;
+}
+
 function call_server(group, type, value) {
-	console.log('new value ' + group + " " + type + " " + value);
-	ludit_send({"command": "set_" + type, "group": group, "value": value.toString()});
+	//console.log('new value ' + group + " " + type + " " + value);
+	pending_command = {"command": "set_" + type, "group": group, "value": value.toString()};
+	if (!pending_key) {
+	    pending_key = type + group;
+	    setTimeout(flush_pending, 100);
+	}
 }
 
 
@@ -70,7 +82,6 @@ function slider_js(group, type, serial, serials, value, min, max) {
 		},\
 		stop: function(event, ui) {\
 			no_configuration_reload = false;\
-			ludit_send({"command": "get_configuration", "group": "n/a"});\
 		}\
     });\
     $(".' + gts + '").val( $("#slider_' + gts + '").slider("value"));\
@@ -96,20 +107,17 @@ function set_slider_value(group, type, serial, value) {
 	var gts = group + '_' + type + serial;
 	$( "." + gts ).val( parseFloat(value).toFixed(1) )
 	var sldr = $("#slider_" + gts);
-	sldr.slider().slider("value", value);
+	sldr.slider().slider("value", parseFloat(value).toFixed(1));
 }
 
 function add_slider(legend, group, type, serial, serials, value, min, max) {
 	var gts = group + '_' + type + serial;
 	
-	if ( !document.querySelector("." + gts) )
-	{
-		console.log('constructing ' + gts);
+	if ( !document.querySelector("." + gts) ) {
 		insert_slider_html(legend, group, type, serial);
 		window.eval(slider_js(group, type, serial, serials, value, min, max));
-		set_slider_value(group, type, value);
-	} else 
-	{
+		set_slider_value(group, type, serial, value);
+	} else 	{
 		while (serials > 0) {
 			var gtsweep = group + '_' + type + serials;
 			var current_value = document.querySelector("." + gtsweep).value;
@@ -125,66 +133,40 @@ function add_slider(legend, group, type, serial, serials, value, min, max) {
 
 /////////////////////// radio ///////////////////////
 
-function insert_radio_html(group, type, serial) {      
+function add_radio(group, type, serial, page, value) {
 	var gts = group + '_' + type + serial;
-	var name_class = 'name="' + gts + '" class="' + gts + '" ';
-    var pageid = '#page2';
-	
-    html = '<br><fieldset>\
-            <legend>Filter order: </legend>\
-            <label for="filter-2">2 \
-            <input type="radio" ' + name_class + ' id="filter-2" value="2"></label>\
-            <label for="filter-4">4 \
-            <input type="radio" ' + name_class + ' id="filter-4" value="4"></label>\
-            <label for="filter-8">8 \
-            <input type="radio" ' + name_class + ' id="filter-8" value="8"></label>\
-            </fieldset>';
-        
+
+html =
+'<br><fieldset"><legend>Filter order: </legend>\
+ <form><div><input type="radio" class="'+gts+'" name="xoverorder" value=2 id="filter-2"><label for="filter-2">2</label></div>\
+ <div><input type="radio" class="'+gts+'" name="xoverorder" value=4 id="filter-4"><label for="filter-4">4</label></div>\
+ <div><input type="radio" class="'+gts+'" name="xoverorder" value=8 id="filter-8"><label for="filter-8">8</label></div>\
+ <div id="log"></div></form></fieldset>';
+
+    var pageid = '#page' + page;
     existing = $(pageid).html();
     $(pageid).html(existing + html);
 }
 
-function set_radio_value(group, type, value) {
-	var serial = 1;
+function set_radio_value(group, type, serial, value) {
 	var gts = group + '_' + type + serial;
-    var option = document.getElementById("filter-" + value);
-    option.checked = true;
+	$("input[class="+gts+"][value=" + value + "]").prop('checked', true);
 }
-
-function add_radio(group, type, serial, serials, value) {
-	var gts = group + '_' + type + serial;
-	console.log('constructing ' + gts);
-	insert_radio_html(group, type, serial);
-	set_radio_value(group, type, value);
-}
-
 
 /////////////////////// switch ///////////////////////
 
-// fixit, callback doesnt work for any but the last switch on a page
-
-function add_switch(group, ident, serial, command, ontext, offtext, is_on) {
+function add_switch(group, ident, serial, page, command, label, is_on) {
 	var key = group + "_" + ident + serial;
-	$("#standard_" + key).btnSwitch({
-		_group: group,
-		_ident: ident,
-		_command: command,
-		ToggleState: is_on,
-		OnValue: true,
-        OffValue: false,
-		OnText: ontext,
-		OffText: offtext,
-		OnCallback: function(val) {
-			console.log(this._group + " " + this._ident + " = " + val);
-			ludit_send({"command": this._command, "group": this._group, "value": val});
-		},
-		OffCallback: function (val) {
-			console.log(this._group + " " + this._ident + " = " + val);
-			ludit_send({"command": this._command, "group": this._group, "value": val});
-		}
-	});
-}
 
+    checked = is_on ? "checked" : "unchecked";
+
+    //html ='<h6><input type="checkbox" name="'+key+'" class="checkbox1" id="'+key+'"'+checked+'><label for="' + key + '">  '+label+'</label></h6>' fixit
+    html ='<h6><input type="checkbox" name="'+key+'" class="checkbox" id="'+key+'"'+checked+'><label for="' + key + '">  '+label+'</label></h6>'
+
+    var pageid = '#page' + page;
+    existing = $(pageid).html();
+    $(pageid).html(existing + html);
+}
 
 /////////////////////// loading ///////////////////////
 
@@ -247,17 +229,18 @@ function add_metric(root, sub, text, value) {
 
 
 function reload_configuration() {
-    $("#page1").html('chrome mobile');
 	var grps = ludit_saved_configuration['groups'];
     $("#page1").html('');
     $("#page2").html('');
-    
+
+    has_enabled_groups = false;
+
 	for (group of grps) {
         var name = group['name'];
         insert_title_html(group['legend'], 2);
 
-		if (group['enabled']) {
-
+		if (group['enabled'] == "on") {
+            has_enabled_groups = true;
             insert_title_html(group['legend'], 1);
 
             insert_extended_html(name, "volume", 1, 1);
@@ -266,7 +249,7 @@ function reload_configuration() {
 			add_slider('Volume', name, "volume", 2, 2, group['volume'], 0, 100);
             
             insert_extended_html(name, "on", 1, 1);
-			add_switch(name, "on", 1, "set_on", "On", "Off", group["on"]);
+			add_switch(name, "on", 1, 1, "set_on", "Active", group["on"] == "on");
             
             insert_extended_html(name, "balance", 1, 2);
 			add_slider('Balance', name, "balance", 1, 1, group['balance'], -100, 100);
@@ -274,7 +257,7 @@ function reload_configuration() {
             insert_extended_html(name, "xoverfreq", 1, 2);
             add_slider('Crossover frequency', name, "xoverfreq", 1, 1, group['xoverfreq'], 300, 3000);
             
-			add_radio(name, "order", 1, 1, group['xoverpoles']);
+			add_radio(name, "order", 1, 2, group['xoverpoles']);
             
             insert_extended_html(name, "highlowbalance", 1, 2);
             add_slider('Low/high balance', name, "highlowbalance", 1, 1, group['highlowbalance'], -1, 1);
@@ -288,23 +271,40 @@ function reload_configuration() {
 			}
 		}
 
-        insert_extended_html(name, "enable", 1, 2);
-        add_switch(name, "enable", 1, "set_enabled", "Enable", "Disable", group['enabled']);
+        add_switch(name, "enable", 1, 2, "set_enable", "Enabled", group["enabled"] == "on");
 	}
+
+    if (!has_enabled_groups) {
+        $("#page1").html('No groups are enabled....');
+    }
 
     for (group of grps) {
         var name = group['name'];
-        if (group['enabled']) {
-            set_radio_value(name, "order", group['xoverpoles']);
+        if (group['enabled'] == "on") {
+            set_radio_value(name, "order", 1, group['xoverpoles']);
         }
     }
 }
 
+
 $(document).ready(function() {
     document.addEventListener('click',function(e) {
-        elem = e.target.className.split("_");
-        if (e.target && elem[1] == 'order1') {
-            call_server(elem[0], "xoverpoles", e.target.value);
+        if (e.target) {
+                if (e.target.name == "xoverorder")
+                {
+                    elem = e.target.className.split("_");
+                    order = e.target.id.split("-");
+                    call_server(elem[0], "xoverpoles", order[1]);
+                }
+                else if (e.target.className == "checkbox"){
+                    elem = e.target.name.split("_");
+                    if (elem[1] == 'on1') {
+                        call_server(elem[0], "on", e.target.checked ? "on" : "off");
+                    }
+                    else if (elem[1] == 'enable1') {
+                        call_server(elem[0], "enabled", e.target.checked ? "on" : "off");
+                    }
+                }
         }
     });
 });

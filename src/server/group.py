@@ -106,8 +106,9 @@ class Group(util.Base):
 
     def set_param(self, key, value):
         if key in ('on', 'enabled'):
+            print(str(value))
             self.jsn[key] = value
-            if not value:
+            if value == 'off':
                 self.stop_playing()
         else:
             self.jsn[key] = float(value)

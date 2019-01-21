@@ -10,13 +10,10 @@
 
 <script type="text/javascript" src="smoothie.js"></script>
 
-    <style>
-        body {
-            font: 16px arial, 'sans-serif' !important;
-        }
-    </style>
 
 <h1>Ludit</h1>
+
+<link href="hurkanSwitch/style.css" rel="stylesheet">
 
 <link rel="stylesheet" href="jquery-treetable-3.2.0/css/screen.css" media="screen" />
 <link rel="stylesheet" href="jquery-treetable-3.2.0/css/jquery.treetable.css" />
@@ -25,15 +22,22 @@
 <link rel='stylesheet' id='edd-styles-css'  href='style.css' type='text/css' media='all' />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
 <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Nunito:200,400,700'>
-<link href="btnSwitch/jquery.btnswitch.css" rel="stylesheet">
+
+    	<style>
+
+		h6 {
+             zoom: 1.5;
+        }
+	</style>
+
 
 </head>
 
 <body>
 <div class="tabs">
     <nav class="tab-list">
-        <a class="tab active" href="#one">Home</a>
-        <a class="tab" href="#two">Kitchen</a>
+        <a class="tab active" href="#one">Room</a>
+        <a class="tab" href="#two">Setup</a>
         <a class="tab" href="#three">System</a>
         <a class="tab" href="#four">Twitse</a>		
     </nav>
@@ -121,6 +125,8 @@
 <script src="jquery.ui.touch-punch.min.js"></script>
 <script src="js.js"></script>
 <script src="jquery-treetable-3.2.0/jquery.treetable.js"></script>
+<script src="hurkanSwitch/hurkanSwitch.js"></script>
+
 
 <script>
 $("#table_metrics").treetable({ expandable: true });
@@ -136,6 +142,7 @@ $("#table_metrics").treetable({ expandable: true });
     var next_color = 0;
     var ms_per_pixel = 2000;
     var hours = 24;
+    var no_configuration_reload = false;
     
     var smoothie_chart_max_delta = null;
     var max_delta_time_series = null;
@@ -330,8 +337,7 @@ $("#table_metrics").treetable({ expandable: true });
     }
     
     ws_ludit = null;
-    var no_configuration_reload = false;
-    
+
     function start_ludit(url) {
         if (window["WebSocket"]) {
             ws_ludit = new WebSocket(url);
@@ -442,7 +448,7 @@ $("#table_metrics").treetable({ expandable: true });
     }
 
     function monitor_send(dict) {
-        if (!ws_monitor)
+        if (!ws_monitor || ws_monitor.readyState != WebSocket.OPEN)
             return;
         var jsn = JSON.stringify(dict);
         ws_monitor.send(jsn);

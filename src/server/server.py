@@ -209,8 +209,8 @@ def generate_config():
     kitchen = {
         'legend': 'Kitchen',
         'name': 'kitchen',
-        'enabled': True,
-        'on': True,
+        'enabled': "on",
+        'on': "on",
         'volume': '100.0',
         'balance': '0.0',
         'highlowbalance': '-0.45',
@@ -230,8 +230,8 @@ def generate_config():
     stereo = {
         'legend': 'Stereo',
         'name': 'stereo',
-        'enabled': False,
-        'on': True,
+        'enabled': "off",
+        'on': "off",
         'volume': '100.0',
         'balance': '0.0',
         'highlowbalance': '0.0',
