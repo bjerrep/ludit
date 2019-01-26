@@ -4,6 +4,10 @@ Description=spotifyd with ludit command fifo
 [Service]
 Type=simple
 User=root
+# on Arch rm path differs on arm and x86
+ExecStartPre=-/usr/rm /tmp/spotifyd
+ExecStartPre=-/usr/bin/rm /tmp/spotifyd
+#
 ExecStartPre=-/usr/bin/mkfifo /tmp/spotifyd
 # the chown is optional for non-root to use the fifo
 ExecStartPre=-/bin/chown -R <user:group> /tmp/spotifyd
