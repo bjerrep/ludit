@@ -137,11 +137,11 @@ function add_radio(group, type, serial, page, value) {
 	var gts = group + '_' + type + serial;
 
 html =
-'<br><fieldset"><legend>Filter order: </legend>\
- <form><div><input type="radio" class="'+gts+'" name="xoverorder" value=2 id="filter-2"><label for="filter-2">2</label></div>\
- <div><input type="radio" class="'+gts+'" name="xoverorder" value=4 id="filter-4"><label for="filter-4">4</label></div>\
- <div><input type="radio" class="'+gts+'" name="xoverorder" value=8 id="filter-8"><label for="filter-8">8</label></div>\
- <div id="log"></div></form></fieldset>';
+    '<br><form><fieldset><legend class="legend1">Filter order: </legend>\
+    <input type="radio" class="'+gts+'" name="xoverorder" value=2 id="filter-2"><label for="filter-2"> 2</label>\
+    <input type="radio" class="'+gts+'" name="xoverorder" value=4 id="filter-4"><label for="filter-4"> 4</label>\
+    <input type="radio" class="'+gts+'" name="xoverorder" value=8 id="filter-8"><label for="filter-8"> 8</label>\
+    </fieldset></form>';
 
     var pageid = '#page' + page;
     existing = $(pageid).html();
