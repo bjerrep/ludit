@@ -1,3 +1,5 @@
+[![readthedocs](https://readthedocs.org/projects/ludit/badge/?version=latest)](https://ludit.readthedocs.io/en/latest/?badge=latest)
+
 <p align="center"><img src="artwork/title.png"></p>
 
 Ludit is the audio player for an audio system consisting of a wired raspberry pi server and wireless raspberry pi powered active stereo (as in two separate) speakers running with hard time synchronization.
