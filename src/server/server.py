@@ -108,31 +108,18 @@ class Server(util.Threadbase):
         group = message['group']
         value = message['value']
 
-        if command == 'set_on':
-            log.info('ws: setting %s on/off to %s' % (group, value))
-            self.play_sequencer.get_group(group).set_param('on', value)
-        elif command == 'set_enabled':
-            log.info('ws: setting %s enabled to %s' % (group, value))
-            self.play_sequencer.get_group(group).set_param('enabled', value)
-        elif command == 'set_volume':
-            log.info('ws: setting %s volume to %s' % (group, value))
-            self.play_sequencer.get_group(group).set_param('volume', value)
-        elif command == 'set_balance':
-            log.info('ws: setting %s balance to %s' % (group, value))
-            self.play_sequencer.get_group(group).set_param('balance', value)
-        elif command == 'set_xoverfreq':
-            log.info('ws: setting %s xover to %s' % (group, value))
-            self.play_sequencer.get_group(group).set_param('xoverfreq', value)
-        elif command == 'set_xoverpoles':
-            log.info('ws: setting %s xover poles to %s' % (group, value))
-            self.play_sequencer.get_group(group).set_param('xoverpoles', value)
-        elif command == 'set_highlowbalance':
-            log.info('ws: setting %s high/low balance to %s' % (group, value))
-            self.play_sequencer.get_group(group).set_param('highlowbalance', value)
+        if command in ('set_on', 'set_enabled', 'set_volume', 'set_balance',
+                       'set_xoverfreq', 'set_xoverpoles', 'set_highlowbalance'):
+
+            raw_cmd = command.replace('set_', '')
+            log.info('ws: setting %s %s to %s' % (group, raw_cmd, value))
+            self.play_sequencer.get_group(group).set_param(raw_cmd, value)
+
         elif command.startswith('set_band'):
             band = command[8:]
             log.info('ws: setting %s band %s to %s' % (group, band, value))
             self.play_sequencer.get_group(group).set_param_array('equalizer', band, value)
+
         else:
             log.error('ws: got unknown command %s' % command)
 
@@ -283,6 +270,7 @@ def start():
                 if _server:
                     log.info('terminating by user')
                     _server.terminate()
+                    log.debug('terminate done, waiting..')
                     _server.join()
                 sys.exit(1)
             except Exception as e:

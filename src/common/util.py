@@ -21,10 +21,9 @@ class Base(Connectable):
 
 
 class Threadbase(threading.Thread, Connectable):
-    def __init__(self, name=None):
+    def __init__(self, name='default'):
         super(Threadbase, self).__init__()
-        if name:
-            self.setName(name)
+        self.name = name
         self.terminated = False
 
     def terminate(self):
