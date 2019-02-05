@@ -1,6 +1,7 @@
 from server import sourcefifo
 from server import sourcetcp
 from server import sourcespotifyd
+from server import sourcemopidy
 from common.log import logger as log
 from common import util
 import queue
@@ -31,10 +32,12 @@ class InputMux(util.Threadbase):
 
         self.sourcefifo = sourcefifo.SourceFifo()
         self.sourcefifo.connect("event", self.input_event)
-        self.sourcetcp = sourcetcp.SourceTCP()
+        self.sourcetcp = sourcetcp.SourceTCP(4665)  # fixit
         self.sourcetcp.connect("event", self.input_event)
         self.sourcespotifyd = sourcespotifyd.SourceSpotifyd()
         self.sourcespotifyd.connect("event", self.input_event)
+        self.source_mopidy = sourcemopidy.SourceMopidy('192.168.1.102', 4666) # fixit
+        self.source_mopidy.connect("event", self.input_event)
 
         threading.Thread(target=self.gst_mainloop_thread).start()
         self.start()
@@ -44,6 +47,7 @@ class InputMux(util.Threadbase):
         self.sourcefifo.terminate()
         self.sourcetcp.terminate()
         self.sourcespotifyd.terminate()
+        self.source_mopidy.terminate()
         self.mainloop.quit()
 
     @staticmethod

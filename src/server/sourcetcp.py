@@ -16,8 +16,9 @@ class SourceTCP(util.Threadbase):
     """
     signals = 'event'
 
-    def __init__(self):
-        super(SourceTCP, self).__init__(name='tcp')
+    def __init__(self, port, name='tcp'):
+        super(SourceTCP, self).__init__(name=name)
+        self.port = port
         self.pipeline = None
         self.eos = False
         self.start()
@@ -27,9 +28,8 @@ class SourceTCP(util.Threadbase):
         if self.pipeline:
             self.pipeline.set_state(Gst.State.NULL)
 
-    @staticmethod
-    def source_name():
-        return 'tcp'
+    def source_name(self):
+        return self.name
 
     def bus_message(self, bus, message):
         try:
@@ -69,10 +69,9 @@ class SourceTCP(util.Threadbase):
             # gst-launch-1.0 tcpserversrc host=<hostname> port=4666 ! decodebin ! audioconvert ! alsasink
             #
             ip = util.local_ip()
-            port = 4666
-            pipeline = 'tcpserversrc host=%s port=%i ! appsink name=appsink' % (ip, port)
+            pipeline = 'tcpserversrc host=%s port=%i ! appsink name=appsink' % (ip, self.port)
 
-            log.info('launching pipeline listening at %s:%i' % (ip, port))
+            log.info('launching %s pipeline listening at %s:%i' % (self.name, ip, self.port))
             self.pipeline = Gst.parse_launch(pipeline)
 
             appsink = self.pipeline.get_by_name('appsink')

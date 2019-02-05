@@ -56,6 +56,8 @@ class Monitor(util.Threadbase):
             self.service('restart', 'ludit_server')
             self.service('restart', 'twitse_server')
             self.service('restart', 'ludit_monitor')  # this one
+        elif command == 'restart_ludit':
+            self.service('restart', 'ludit_server')
         else:
             log.warning('got unknown command %s' % command)
 
@@ -79,6 +81,9 @@ class Monitor(util.Threadbase):
 
         if command == 'restart_all':
             self.multicast.send({'command': 'restart_all', 'to': '*'})
+            self.computer(command)
+        elif command == 'restart_ludit':
+            self.multicast.send({'command': 'restart_ludit', 'to': '*'})
             self.computer(command)
         elif command == 'reboot':
             self.multicast.send({'command': 'reboot', 'to': '*'})

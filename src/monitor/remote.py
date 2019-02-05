@@ -41,6 +41,8 @@ class Remote(util.Threadbase):
             self.service('restart', 'ludit_client')
             self.service('restart', 'twitse_client')
             self.service('restart', 'ludit_remote')  # this one
+        elif command == 'restart_ludit':
+            self.service('restart', 'ludit_client')
         else:
             log.warning('got unknown command %s' % command)
 
