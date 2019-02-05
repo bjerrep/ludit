@@ -253,6 +253,10 @@ function reload_configuration() {
             
             insert_extended_html(name, "balance", 1, 2);
 			add_slider('Balance', name, "balance", 1, 1, group['balance'], -100, 100);
+
+			insert_extended_html(name, "stereoenhance", 1, 2);
+			add_slider('Stereo enhance', name, "stereoenhance", 1, 1, group['stereoenhance'], 0, 1);
+			add_switch(name, "stereoenhanceenabled", 1, 2, "set_stereoenhanceenabled", "Enabled", group["stereoenhanceenabled"] == "on");
             
             insert_extended_html(name, "xoverfreq", 1, 2);
             add_slider('Crossover frequency', name, "xoverfreq", 1, 1, group['xoverfreq'], 300, 3000);
@@ -303,6 +307,9 @@ $(document).ready(function() {
                     }
                     else if (elem[1] == 'enable1') {
                         call_server(elem[0], "enabled", e.target.checked ? "on" : "off");
+                    }
+                    else if (elem[1] == 'stereoenhanceenabled1') {
+                        call_server(elem[0], "stereoenhanceenabled", e.target.checked ? "on" : "off");
                     }
                 }
         }

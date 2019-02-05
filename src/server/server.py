@@ -109,7 +109,8 @@ class Server(util.Threadbase):
         value = message['value']
 
         if command in ('set_on', 'set_enabled', 'set_volume', 'set_balance',
-                       'set_xoverfreq', 'set_xoverpoles', 'set_highlowbalance'):
+                       'set_xoverfreq', 'set_xoverpoles', 'set_highlowbalance',
+                       'set_stereoenhanceenabled', 'set_stereoenhance'):
 
             raw_cmd = command.replace('set_', '')
             log.info('ws: setting %s %s to %s' % (group, raw_cmd, value))
@@ -200,8 +201,8 @@ def generate_config():
         'on': "on",
         'volume': '100.0',
         'balance': '0.0',
-        'stereo_enhance': '0.0',
-        'stereo_enhance_enable': 'off',
+        'stereoenhance': '0.0',
+        'stereoenhanceenabled': 'off',
         'highlowbalance': '-0.45',
         'xoverfreq': '1300',
         'xoverpoles': '4',
@@ -223,8 +224,8 @@ def generate_config():
         'on': "off",
         'volume': '100.0',
         'balance': '0.0',
-        'stereo_enhance': '0.0',
-        'stereo_enhance_enable': 'off',
+        'stereoenhance': '0.0',
+        'stereoenhanceenabled': "off",
         'highlowbalance': '0.0',
         'xoverfreq': '1200',
         'xoverpoles': '4',
