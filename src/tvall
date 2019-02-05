@@ -1,0 +1,20 @@
+#! /bin/sh
+
+mkfifo /tmp/audio
+mkfifo /tmp/spotifyd
+
+echo "123" | sudo bluealsa -p a2dp-sink --a2dp-fifo=stream --inband &
+
+cd
+cd projects/tvspeaker/src/
+./run_server.py --cfg jesper.cfg &
+
+cd
+cd projects/tvspeaker/src
+./run_client.py --id kitchen:left &
+
+cd
+cd projects/tvspeaker/web
+/usr/bin/firefox index.html &
+
+alsamixer
