@@ -52,6 +52,8 @@ class Player(util.Threadbase):
     codec = 'pcm'
     master_channel_volumes = [0.0, 0.0]
     balance = 0.0
+    stereoenhance = 0.0
+    stereoenhanceenabled = False
     highlowbalance = 0.0
     xoverfreq = 1000
     xoverpoles = 4
@@ -117,10 +119,14 @@ class Player(util.Threadbase):
             lo, hi = self.calculate_highlowbalance(self.highlowbalance)
             self.set_volume(None)
 
+            stereoenhance_element = ''
+            if self.stereoenhanceenabled:
+                stereoenhance_element = 'audioconvert ! stereo stereo=%f ! ' %self.stereoenhance
+
             pipeline = (
-                'appsrc name=audiosource emit-signals=true max-bytes=%i ! %s '
+                'appsrc name=audiosource emit-signals=true max-bytes=%i ! %s %s '
                 'audioconvert ! audio/x-raw,format=F32LE,channels=2 ! queue ! deinterleave name=d ' %
-                (buffer_size, decoding))
+                (buffer_size, decoding, stereoenhance_element))
 
             for channel in self.channel_list:
                 try:
@@ -319,6 +325,16 @@ class Player(util.Threadbase):
         balance = message.get('balance')
         if balance:
             self.set_balance(float(balance) / 100.0)
+
+        stereoenhance = message.get('stereoenhance')
+        if stereoenhance:
+            log.debug('setting stereoenhance %s' % stereoenhance)
+            self.stereoenhance = float(stereoenhance)
+
+        stereoenhanceenabled = message.get('stereoenhanceenabled')
+        if stereoenhanceenabled:
+            log.debug('setting stereoenhanceenabled %s' % stereoenhanceenabled)
+            self.stereoenhanceenabled = stereoenhanceenabled == 'on'
 
         highlowbalance = message.get('highlowbalance')
         if highlowbalance:
