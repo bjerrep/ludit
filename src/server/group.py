@@ -82,22 +82,20 @@ class Group(util.Base):
             log.error('%s disconnected while not connected' % device.name())
 
     def slot_message(self, msg):
-        self.lock.acquire()
-        command = msg['command']
-        clientname = msg['clientname']
-        id = util.make_id(self.groupname, clientname)
-        if command == 'time':
-            log.debug("[%s] epoch is %s" % (id, msg['epoch']))
-        elif command == 'status':
-            state = msg['state']
-            for _device in self.connected_devices:
-                if _device.state() != state:
-                    self.lock.release()
-                    return
-            self.emit('status', state)
-        else:
-            log.debug('[%s] got %s ?' % (id, command))
-        self.lock.release()
+        with self.lock:
+            command = msg['command']
+            clientname = msg['clientname']
+            id = util.make_id(self.groupname, clientname)
+            if command == 'time':
+                log.debug("[%s] epoch is %s" % (id, msg['epoch']))
+            elif command == 'status':
+                state = msg['state']
+                for _device in self.connected_devices:
+                    if _device.state() != state:
+                        return
+                self.emit('status', state)
+            else:
+                log.debug('[%s] got %s ?' % (id, command))
 
     def get_configuration(self):
         config = self.jsn.copy()
