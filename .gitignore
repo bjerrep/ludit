@@ -9,3 +9,4 @@ src/*.cfg
 src/export*
 
 ludit_local*.json
+ludit_local.json.*

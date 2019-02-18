@@ -14,12 +14,13 @@ These installs are common for both server and clients
 
 Arch::
 
-    python-pip libfdk-aac faad2 faac kate git subversion openssh rsync gstreamer gst-python gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav python-pybluez
+    python-pip libfdk-aac faad2 faac kate git subversion openssh rsync gstreamer gst-python gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav python-pybluez python-websockets
 
+On a fresh install this will end up as nearly 1GB of storage used.
 
 Ubuntu::
 
-    gstreamer1.0-libav gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly python-gst-1.0 ubuntu-restricted-extras aac-enc libfdk-aac-dev autoconf libtool libasound2 libasound2-dev bluez libbluetooth-dev glib-2.0-dev libgtk2.0-dev libsbc-dev libsbc1 python3-pip 
+    gstreamer1.0-libav gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly python-gst-1.0 ubuntu-restricted-extras aac-enc libfdk-aac-dev autoconf libtool libasound2 libasound2-dev bluez libbluetooth-dev glib-2.0-dev libgtk2.0-dev libsbc-dev libsbc1 python3-pip python3-websockets
 
 
 Others

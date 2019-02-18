@@ -129,7 +129,10 @@ class Client(util.Threadbase):
             else:
                 delay = 0.1
 
-            time.sleep(delay)
+            _delay = delay
+            while _delay > 0.0 and not self.terminated:
+                time.sleep(0.1)
+                _delay -= 0.1
 
         log.debug('server connector exits')
         return False

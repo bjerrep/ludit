@@ -18,7 +18,7 @@ class SourceTCP(util.Threadbase):
 
     def __init__(self, port, name='tcp'):
         super(SourceTCP, self).__init__(name=name)
-        self.port = port
+        self.port = int(port)
         self.pipeline = None
         self.eos = False
         self.start()

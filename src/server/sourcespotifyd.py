@@ -22,13 +22,9 @@ class SourceSpotifyd(util.Threadbase):
     signals = 'event'
 
     def __init__(self):
-        super(SourceSpotifyd, self).__init__(name='spotd')
+        super(SourceSpotifyd, self).__init__(name='spotifyd')
         self.pipeline = None
         self.start()
-
-    @staticmethod
-    def source_name():
-        return 'spotifyd'
 
     def start_playing(self):
         self.send_event('codec', 'aac_adts')
@@ -55,7 +51,7 @@ class SourceSpotifyd(util.Threadbase):
                     log.debug('pipeline state changed to %s' % Gst.Element.state_get_name(new_state))
 
         except Exception as e:
-            log.critical('[%s] parsing bus message gave "%s"' % (self.source_name(), str(e)))
+            log.critical('[%s] parsing bus message gave "%s"' % (self.name, str(e)))
 
     def new_sample(self, sink):
         sample = sink.emit("pull-sample")
@@ -87,7 +83,7 @@ class SourceSpotifyd(util.Threadbase):
             log.critical("couldn't construct pipeline, %s" % str(e))
 
     def send_event(self, key, value):
-        self.emit('event', [self.source_name(), key, value])
+        self.emit('event', [self.name, key, value])
 
     def run(self):
         while not self.terminated:

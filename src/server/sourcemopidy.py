@@ -13,29 +13,44 @@ class SourceMopidy(util.Threadbase):
 
     signals = 'event'
 
-    def __init__(self, mopidy_address, tcp_port, name='mopidy'):
+    def __init__(self, mopidy_ws_address, mopidy_ws_port, mopidy_gst_port, name='mopidy'):
         super(SourceMopidy, self).__init__(name=name)
-        self.mopidy_address = mopidy_address
-        self.tcp = SourceTCP(tcp_port)
-        self.tcp.connect("event", self.input_event)
+        self.mopidy_address = mopidy_ws_address
+        self.mopidy_port = mopidy_ws_port
+        self.tcp = SourceTCP(mopidy_gst_port)
+        self.tcp.connect("event", self.mopidy_event)
         self.volume = -1
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.start()
 
     def terminate(self):
-        print(dir(self.ws))
         self.loop.call_soon_threadsafe(self.loop.stop)
         self.tcp.terminate()
         super().terminate()
         log.debug('sourcemopidy terminated')
 
-    def input_event(self, skv):
-        self.emit('event', skv)
+    def mopidy_event(self, skv):
+        _source, key, value = skv
+        self.send_event(key, value)
+
+    def send_event(self, key, value):
+        self.emit('event', [self.name, key, value])
+
+    def stop_playing(self):
+        self.send_event('state', 'stop')
+
+    def start_playing(self):
+        self.send_event('codec', 'aac_adts')
+
+    def new_volume(self, value):
+        self.send_event('volume', value)
 
     async def ws_listen(self):
 
-        async with websockets.connect('ws://%s:6680/mopidy/ws' % self.mopidy_address) as self.ws:
+        address = util.tcp2str((self.mopidy_address, self.mopidy_port))
+
+        async with websockets.connect('ws://%s/mopidy/ws' % address) as self.ws:
             try:
                 log.info('connected to mopidy websocket')
                 while 1:
@@ -48,10 +63,18 @@ class SourceMopidy(util.Threadbase):
                     except KeyError:
                         uri = ''
 
-                    if event == 'track_playback_paused':
+                    if event == 'track_playback_started':
+                        log.info('mopidy started ' + uri)
+                        self.start_playing()
+                    elif event == 'track_playback_ended':
+                        log.info('mopidy stopped ' + uri)
+                        self.stop_playing()
+                    elif event == 'track_playback_paused':
                         log.info('mopidy paused ' + uri)
+                        self.stop_playing()
                     elif event == 'track_playback_resumed':
                         log.info('mopidy resumes ' + uri)
+                        self.start_playing()
                     elif event == 'playback_state_changed':
                         old_state = message['old_state']
                         new_state = message['new_state']
@@ -61,17 +84,16 @@ class SourceMopidy(util.Threadbase):
                         if volume != self.volume:
                             self.volume = volume
                             log.info('mopidy volume %i' % volume)
-                    elif event == 'track_playback_started':
-                        log.info('mopidy started ' + uri)
-                    elif event == 'track_playback_ended':
-                        log.info('mopidy stopped ' + uri)
+                            self.new_volume(volume)
                     elif event == 'tracklist_changed':
                         pass
                     else:
                         log.info('mopidy event not recognized: %s' % message)
             except Exception as e:
-                print('fixit')
+                log.critical('sourcespotify caught %s' % str(e))
                 raise e
+
+            log.debug('sourcemopidy websocket exits')
 
     def run(self):
         while not self.terminated:
@@ -82,7 +104,7 @@ class SourceMopidy(util.Threadbase):
             except websockets.ConnectionClosed:
                 log.info('mopidy websocket was closed')
             except Exception as e:
-                print(str(e))
+                log.critical('unexpected exception in sourcemopidy, %s' % str(e))
 
             time.sleep(1)
 

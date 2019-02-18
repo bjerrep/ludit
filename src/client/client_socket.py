@@ -8,10 +8,11 @@ import time
 class ClientSocket(util.Threadbase):
     signals = ('socket', 'audio', 'message')
 
-    def __init__(self, endpoint):
+    def __init__(self, endpoint, buffer_size=4096):
         super(ClientSocket, self).__init__(name='clientsoc ')
         self.socket = None
         self.endpoint = endpoint
+        self.buffer_size = buffer_size
         self.connected = False
         self.start()
 
@@ -50,7 +51,7 @@ class ClientSocket(util.Threadbase):
                         raise util.ExpectedException
 
                 try:
-                    blob = self.socket.recv(4096)
+                    blob = self.socket.recv(self.buffer_size)
                     rxdata = rxdata + blob
 
                 except ConnectionResetError:

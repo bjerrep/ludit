@@ -10,7 +10,14 @@ WorkingDirectory=<git root>/src
 ExecStartPre=-/usr/bin/mkfifo /tmp/audio
 # the chown is optional for non-root to use the fifo
 ExecStartPre=-/bin/chown -R <user:group> /tmp/audio
-ExecStart=/usr/bin/python <git root>/src/run_server.py [--cfg <configuration file> (see --newcfg)]
+
+# Just run the script as a service. This is the normal thing to do. Systemd will restart the script in case it crashes.
+ExecStart=/usr/bin/python <git root>/src/run_server.py [--cfg <configuration file>]
+
+# Run inside screen which can be retrieved with "screen -r ludit_server". The screen does not exit in case the script crashes 
+# but keeps running for post mortem analysis.
+ExecStart=/usr/bin/screen -fn -L -DmS ludit_server sh -c '/usr/bin/python <git root>/src/run_server.py [--cfg <configuration file> (see --newcfg)]; exec /usr/bin/bash'
+
 Restart=on-failure
 
 [Install]

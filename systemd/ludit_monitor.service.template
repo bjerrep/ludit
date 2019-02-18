@@ -7,6 +7,7 @@ After=network-online.target
 Type=simple
 User=root
 WorkingDirectory=<git root>/src
+# For alternative ways to run the script under systemd see 'ludit_server.service.template'
 ExecStart=/usr/bin/python <git root>/src/run_monitor.py
 Restart=on-failure
 

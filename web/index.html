@@ -23,9 +23,16 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
 <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Nunito:200,400,700'>
 
-    <style>
-    h6 {
-         zoom: 1.5;
+<style>
+    input[type=checkbox]
+    {
+      /* Double-sized Checkboxes */
+      -ms-transform: scale(2); /* IE */
+      -moz-transform: scale(2); /* FF */
+      -webkit-transform: scale(2); /* Safari and Chrome */
+      -o-transform: scale(2); /* Opera */
+      padding: 10px;
+      margin-top: 25px;
     }
 
     input[type="radio"] {
@@ -49,27 +56,27 @@
         <a class="tab active" href="#one">Rooms</a>
         <a class="tab" href="#two">Setup</a>
         <a class="tab" href="#three">System</a>
-        <a class="tab" href="#four">Twitse</a>		
+        <a class="tab" href="#four">Twitse</a>
     </nav>
 
     <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
-    
+
     <div id="one" class="tab-content show">
         <div class="page1" id="page1"></div>
     </div>
-    
+
     <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
-    
+
     <div id="two" class="tab-content">
         <div class="page2" id="page2"></div>
-     
+
         <p>
            <input type="button" value="Save" onclick="SaveCurrentConfiguration();" >
         </p>
     </div>
-    
+
     <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
-    
+
     <div id="three" class="tab-content">
         <h2>System status</h2>
         <table id="table_metrics">
@@ -81,28 +88,29 @@
             </tr>
             </thead>
         </table>
-        
+
         <h2>Commands</h2>
         <div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
             <div class="m_settings_cell">
                 <input id="restart_all" name="restart_all" type="submit" value="Restart All"/>
+                <input id="restart_ludit" name="restart_ludit" type="submit" value="Restart Ludit"/>
                 <input id="reboot" name="reboot" type="submit" value="Reboot"/>
             </div>
         </div></div></div></div></div></div>
 
     </div>
-    
-    <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->	
-    
+
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+
     <div id="four" class="tab-content">
 
         <h2>Twitse</h2>
         <div id="current_offsets_chart_timespan"></div>
         <canvas id="current_offsets_chart_element" style="width:100%; height:200px"></canvas>
-        
+
         <h3>Device list:</h3>
         <canvas id="channel_box" width="500" height="150"></canvas>
-        
+
         <h3>Max delta offset:</h3>
         <div id="max_offsets_chart_timespan"></div>
         <canvas id="max_offsets_chart_element" style="width:100%; height:200px"></canvas>
@@ -113,13 +121,13 @@
             <input type="button" value="Week" onclick="ButtonHours(24*7);" >
         </p>
         <div id="max_delta_mean"></div>
-        
+
         <h3>Commands:</h3>
         <p>
             <input type="button" value="50us step response" onclick="CommandTransientTest();" >
         </p>
 
-                
+
         <div id="wall_offset"></div>
         <div id="error"></div>
     </div>
@@ -127,7 +135,7 @@
 </div>
 
 
-<!-- - - - - - - - - javascript - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->	
+<!-- - - - - - - - - javascript - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
 
 <script src="jquery-3.3.1.min.js"></script>
 <script src="btnSwitch/jquery.btnswitch.js"></script>
@@ -153,7 +161,7 @@ $("#table_metrics").treetable({ expandable: true });
     var ms_per_pixel = 2000;
     var hours = 24;
     var no_configuration_reload = false;
-    
+
     var smoothie_chart_max_delta = null;
     var max_delta_time_series = null;
     var _max_delta_chart = null;
@@ -161,11 +169,12 @@ $("#table_metrics").treetable({ expandable: true });
     // https://stackoverflow.com/a/41818235
     try {
         var ludit_setup = JSON.parse($.getJSON({'url': "ludit_local.json", 'async': false}).responseText);
+        console.log('connecting to ludit ws address ' + ludit_setup["ludit"]["address"])
     }
     catch(err) {
        alert("Missing file: 'ludit_local.json' not found. Make a local copy of 'ludit_local.json.template'");
     }
-    
+
     class ChannelInfo {
         constructor(name, timeseries, color) {
             this._name = name;
@@ -197,7 +206,7 @@ $("#table_metrics").treetable({ expandable: true });
         var x1 = 10, x2 = 60, x3 = 110, x4 = 180, x5 = 230, x6 = 275, x7 = 310, xlast = x7;
         var y0 = 30, y = 50;
         var lineheight = 20;
-        
+
         c.fillStyle = "dimgrey";
         c.fillRect(0, 0, xlast + 100, 150);
         c.font = 'bold 11px Arial, sans-serif';
@@ -207,12 +216,12 @@ $("#table_metrics").treetable({ expandable: true });
         c.fillText("Offset", x5, y0);
         c.fillText("AMA", x6, y0);
         c.fillText("RMS", x7, y0);
-        
+
         var keys = Object.keys(channels);
         for (var i = 0; i < keys.length; i++) {
             var key = keys[i];
             var channel_info = channels[key];
-            c.fillStyle = channel_info.color;                
+            c.fillStyle = channel_info.color;
             var yoff = y + (i * lineheight);
             c.fillText(key, x1, yoff);
             c.fillText(channel_info.status, x2, yoff);
@@ -228,63 +237,63 @@ $("#table_metrics").treetable({ expandable: true });
     }
 
     function print_responsives() {
-        var chart = document.getElementById("current_offsets_chart_element");            
+        var chart = document.getElementById("current_offsets_chart_element");
         var graph_width = chart.clientWidth;
         var minuttes = ms_per_pixel * graph_width / 60000.0;
         $("#current_offsets_chart_timespan").text("Timespan : " + minuttes.toFixed(1) + " min");
     }
-    
+
     print_responsives();
 
     // -------------------------------------------
-    
-    var smoothie_chart = new SmoothieChart({ 
+
+    var smoothie_chart = new SmoothieChart({
         responsive: true, millisPerPixel: ms_per_pixel,
         interpolation: 'bezier',
         maxValue: 100, minValue: -100,
-        grid: { verticalSections: 10,} 
+        grid: { verticalSections: 10,}
     });
 
-    var chart = document.getElementById("current_offsets_chart_element");                        
+    var chart = document.getElementById("current_offsets_chart_element");
     smoothie_chart.streamTo(chart);
-    
-    smoothie_chart_max_delta = new SmoothieChart({ 
+
+    smoothie_chart_max_delta = new SmoothieChart({
         responsive: true, enableDpiScaling: false, limitFPS: 1, scaleSmoothing: 1, nonRealtimeData: false,
         interpolation: 'bezier',
         maxValue: 100, minValue: 0,
-        grid: { verticalSections: 10 } 
+        grid: { verticalSections: 10 }
     });
-    
+
     _max_delta_chart = document.getElementById("max_offsets_chart_element");
-    smoothie_chart_max_delta.options.millisPerPixel = 200000;        
+    smoothie_chart_max_delta.options.millisPerPixel = 200000;
     smoothie_chart_max_delta.streamTo(_max_delta_chart);
     max_delta_time_series = new TimeSeries();
     smoothie_chart_max_delta.addTimeSeries(
-        max_delta_time_series, 
+        max_delta_time_series,
         { strokeStyle: "orange", fillStyle: "orange", lineWidth: 1 });
     max_delta_time_series.append(0, 0);
-    
+
     // -------------------------------------------
 
     update_channel_list();
-    
+
     ws_twitse = null;
-    
+
     function start_twitse(url) {
 
         if (window["WebSocket"]) {
             next_color = 0;
             ws_twitse = new WebSocket(url);
-            
+
             ws_twitse.onmessage = function (e) {
                 var obj = JSON.parse(e.data);
                 var command = obj['command'];
-                
+
                 if (command === "walloffset") {
                     $("#wall_offset").text("NTP wall offset : " + obj['value'] + " secs");
                     return;
                 }
-                
+
                 if (command === "max_delta_offset_history") {
                     var time = JSON.parse(obj['time']);
                     var value = JSON.parse(obj['value']);
@@ -301,7 +310,7 @@ $("#table_metrics").treetable({ expandable: true });
                 else {
                     var name = obj['name'];
                     var channel_info = channels[name];
-                    
+
                     if (channel_info === undefined) {
                         var time_series = new TimeSeries();
                         var color = colors[next_color++ % 6];
@@ -310,7 +319,7 @@ $("#table_metrics").treetable({ expandable: true });
                         channel_info.status = "online";
                         channels[name] = channel_info;
                     }
-                    
+
                     if (command === "lockstateupdate") {
                         channel_info.lockstate = obj['lockstate']
                     }
@@ -320,10 +329,10 @@ $("#table_metrics").treetable({ expandable: true });
                     else if (command === "current_offset") {
                         var time = obj['time'];
                         var value = obj['value'];
-                        
+
                         var time_series = channel_info.timeseries;
                         time_series.append(parseInt(time), parseFloat(value));
-                        
+
                         offsets[name] = value;
                         channel_info.meanabsdev = obj['meanabsdev']
                         channel_info.rms = obj['rms']
@@ -339,13 +348,13 @@ $("#table_metrics").treetable({ expandable: true });
             ws_twitse.onopen = function (e) {
                 console.log('twitse websocket connected');
                 twitse_send({"command": "get_history"});
-                
+
             };
         } else {
             $("#error").text("WebSocket init failed")
         }
     }
-    
+
     ws_ludit = null;
 
     function start_ludit(url) {
@@ -416,7 +425,7 @@ $("#table_metrics").treetable({ expandable: true });
     var interval = 100;
     var index = 0;
     var metrics_timer = setInterval(monitor_metrics_refresh, interval);
-    
+
     function monitor_metrics_refresh() {
         switch(index++) {
             case 0: monitor_send({"command": "get_cputemperature", "group": "n/a"}); return;
@@ -434,7 +443,7 @@ $("#table_metrics").treetable({ expandable: true });
         }
         index = 0;
     }
-        
+
     function check_websockets() {
         if (!ws_ludit) {
             start_ludit(ws_url(ludit_setup["ludit"]["address"], ludit_setup["ludit"]["port"]));
@@ -447,8 +456,8 @@ $("#table_metrics").treetable({ expandable: true });
         }
     }
     setInterval(check_websockets, 10000);
-    setTimeout(check_websockets, 100);
-    
+    check_websockets();
+
 
     function ludit_send(dict) {
         if (!ws_ludit || ws_ludit.readyState != WebSocket.OPEN)
@@ -480,7 +489,7 @@ $("#table_metrics").treetable({ expandable: true });
         twitse_send( {"command": "get_max_delta_history"});
         ButtonHours(24);
     }
-    
+
     function ButtonHours(_hours) {
         if (_hours == 7*24)
             $("#max_offsets_chart_timespan").text("Timespan : Week");
@@ -501,7 +510,7 @@ $("#table_metrics").treetable({ expandable: true });
     function SaveCurrentConfiguration() {
         ludit_send({"command": "save_current_configuration"});
     }
-    
+
     // fails on android firefox
     var ro = new ResizeObserver( entries => {
             if (window._max_delta_chart && window._max_delta_chart.clientWidth > 0) {
@@ -511,16 +520,19 @@ $("#table_metrics").treetable({ expandable: true });
         });
 
     ro.observe(max_offsets_chart_element);
-    
+
     $(document).ready(function() {
         $("#restart_all").click(function() {
             monitor_send({"command": "restart_all"});
-        }); 
+        });
+        $("#restart_ludit").click(function() {
+            monitor_send({"command": "restart_ludit"});
+        });
         $("#reboot").click(function() {
             monitor_send({"command": "reboot"});
-        }); 
-    });    
-    
+        });
+    });
+
 </script>
 
 </body>

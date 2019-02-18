@@ -121,7 +121,7 @@ class Player(util.Threadbase):
 
             stereoenhance_element = ''
             if self.stereoenhanceenabled:
-                stereoenhance_element = 'audioconvert ! stereo stereo=%f ! ' %self.stereoenhance
+                stereoenhance_element = 'audioconvert ! stereo stereo=%f ! ' % self.stereoenhance
 
             pipeline = (
                 'appsrc name=audiosource emit-signals=true max-bytes=%i ! %s %s '
@@ -244,15 +244,20 @@ class Player(util.Threadbase):
             # here the time precision is about to go out the window in the call to set_base_time. If and when we
             # are preempted then the timing can be off in the millisecond range which is by any standards super awful.
             # The loop is an attempt to get some kind of deterministic execution time.
-            target_time_us = 37 # found empirically on an overclocked rpi 3B+
+            target_time_us = 37  # found empirically on an overclocked rpi 3B+
             target_window_us = 0.2
 
             for i in range(151):
                 gst_setup_start = time.time()
-                self.pipeline.set_base_time(self.pipeline.get_pipeline_clock().get_time() + play_time_ns - time.time() * 1000000000)
+
+                self.pipeline.set_base_time(
+                    self.pipeline.get_pipeline_clock().get_time()
+                    + play_time_ns
+                    - time.time() * 1000000000)
+
                 gst_setup_elapsed_us = (time.time() - gst_setup_start) * 1000000
                 if (gst_setup_elapsed_us > target_time_us - i * target_window_us and
-                    gst_setup_elapsed_us < target_time_us + i * target_window_us):
+                        gst_setup_elapsed_us < target_time_us + i * target_window_us):
                     break
 
             setup_message = 'time setup took %.3f us in %i tries' % (gst_setup_elapsed_us, i)
@@ -287,8 +292,8 @@ class Player(util.Threadbase):
             self.buffer_state = BufferState.MONITOR_STARTING
             self.last_status_time = None
 
-        elif command == 'configuration':
-            self.configure_pipeline(message)
+        elif command == 'set_param':
+            self.configure_pipeline(message['param'])
 
         else:
             log.critical("got unknown command '%s'" % command)
@@ -301,88 +306,93 @@ class Player(util.Threadbase):
             log.info("processing setup '%s'. %s" % (message.get('name'), channel))
             if channel == Channel.LEFT or channel == Channel.STEREO:
                 self.channel_list.append('0')
-                device = message.get('left_device')
-                if device:
+                try:
+                    device = message['general']['devices']['left_alsa_device']
                     self.alsa_hw_device['0'] = "device=%s" % device
                     log.debug("left alsa device is %s" % device)
-                else:
+                except:
                     self.alsa_hw_device['0'] = ''
             if channel == Channel.RIGHT or channel == Channel.STEREO:
                 self.channel_list.append('1')
-                device = message.get('right_device')
-                if device:
+                try:
+                    device = message['general']['devices']['right_alsa_device']
                     self.alsa_hw_device['1'] = "device=%s" % device
                     log.debug("right alsa device is %s" % device)
-                else:
+                except:
                     self.alsa_hw_device['1'] = ''
 
-        volume = message.get('volume')
-        if volume:
-            volume = float(volume) / 100.0
-            log.debug('setting volume %.4f' % volume)
-            self.set_volume(volume)
+        levels = message.get('levels')
+        if levels:
+            volume = levels.get('volume')
+            if volume:
+                volume = float(volume) / 100.0
+                log.debug('setting volume %.4f' % volume)
+                self.set_volume(volume)
 
-        balance = message.get('balance')
-        if balance:
-            self.set_balance(float(balance) / 100.0)
+            balance = levels.get('balance')
+            if balance:
+                self.set_balance(float(balance) / 100.0)
+
+            equalizer = levels.get('equalizer')
+            if equalizer:
+                """
+                Center frequencies 29 59 119 237 474 947 1889 3770 7523 15011
+                """
+                for band in range(self.eq_bands):
+                    att = equalizer.get('%i' % band)
+                    if att:
+                        self.eq_band_gain[band] = float(att)
+                        log.debug('setting equalizer band %i to %f' % (band, self.eq_band_gain[band]))
+                        if self.pipeline:
+                            for channel in self.channel_list:
+                                eq = self.pipeline.get_by_name('equalizer' + channel)
+                                eq.set_property('band%i' % band, self.eq_band_gain[band])
 
         stereoenhance = message.get('stereoenhance')
         if stereoenhance:
-            log.debug('setting stereoenhance %s' % stereoenhance)
-            self.stereoenhance = float(stereoenhance)
+            stereoenhance_depth = stereoenhance.get('depth')
+            if stereoenhance_depth:
+                log.debug('setting stereoenhance depth %s' % stereoenhance_depth)
+                self.stereoenhance = float(stereoenhance_depth)
 
-        stereoenhanceenabled = message.get('stereoenhanceenabled')
-        if stereoenhanceenabled:
-            log.debug('setting stereoenhanceenabled %s' % stereoenhanceenabled)
-            self.stereoenhanceenabled = stereoenhanceenabled == 'on'
+            stereoenhance_enabled = stereoenhance.get('enabled') == 'true'
+            if stereoenhance_enabled:
+                log.debug('setting stereoenhance enable %s' % stereoenhance_enabled)
 
-        highlowbalance = message.get('highlowbalance')
-        if highlowbalance:
-            highlowbalance = float(highlowbalance)
-            lo, hi = self.calculate_highlowbalance(highlowbalance)
-            log.debug('setting high/low balance %.1f (low %.5f high %.5f)' %
-                      (highlowbalance, lo, hi))
-            if self.pipeline:
-                for channel in self.channel_list:
-                    self.pipeline.get_by_name('highvol' + channel).set_property('volume', hi)
-                    self.pipeline.get_by_name('lowvol' + channel).set_property('volume', lo)
+        xover = message.get('xover')
+        if xover:
+            highlowbalance = xover.get('highlowbalance')
+            if highlowbalance:
+                highlowbalance = float(highlowbalance)
+                lo, hi = self.calculate_highlowbalance(highlowbalance)
+                log.debug('setting high/low balance %.1f (low %.5f high %.5f)' %
+                          (highlowbalance, lo, hi))
+                if self.pipeline:
+                    for channel in self.channel_list:
+                        self.pipeline.get_by_name('highvol' + channel).set_property('volume', hi)
+                        self.pipeline.get_by_name('lowvol' + channel).set_property('volume', lo)
 
-        xoverfreq = message.get('xoverfreq')
-        if xoverfreq:
-            log.debug('setting xover frequency %s' % xoverfreq)
-            self.xoverfreq = float(xoverfreq)
-            if self.pipeline:
-                for channel in self.channel_list:
-                    xlow = self.pipeline.get_by_name('lowpass' + channel)
-                    xlow.set_property('cutoff', self.xoverfreq)
-                    xhigh = self.pipeline.get_by_name('highpass' + channel)
-                    xhigh.set_property('cutoff', self.xoverfreq)
+            xoverfreq = xover.get('freq')
+            if xoverfreq:
+                log.debug('setting xover frequency %s' % xoverfreq)
+                self.xoverfreq = float(xoverfreq)
+                if self.pipeline:
+                    for channel in self.channel_list:
+                        xlow = self.pipeline.get_by_name('lowpass' + channel)
+                        xlow.set_property('cutoff', self.xoverfreq)
+                        xhigh = self.pipeline.get_by_name('highpass' + channel)
+                        xhigh.set_property('cutoff', self.xoverfreq)
 
-        xoverpoles = message.get('xoverpoles')
-        if xoverpoles:
-            log.debug('setting xover poles %s' % xoverpoles)
-            self.xoverpoles = int(xoverpoles)
-            if self.pipeline:
-                for channel in self.channel_list:
-                    xlow = self.pipeline.get_by_name('lowpass' + channel)
-                    xlow.set_property('poles', self.xoverpoles)
-                    xhigh = self.pipeline.get_by_name('highpass' + channel)
-                    xhigh.set_property('poles', self.xoverpoles)
-
-        """
-        Center frequencies 29 59 119 237 474 947 1889 3770 7523 15011
-        """
-        equalizer = message.get('equalizer')
-        if equalizer:
-            for band in range(self.eq_bands):
-                att = equalizer.get(str(band))
-                if att:
-                    self.eq_band_gain[band] = float(att)
-                    log.debug('setting equalizer band %i to %f' % (band, self.eq_band_gain[band]))
-                    if self.pipeline:
-                        for channel in self.channel_list:
-                            eq = self.pipeline.get_by_name('equalizer' + channel)
-                            eq.set_property('band%i' % band, self.eq_band_gain[band])
+            xoverpoles = xover.get('poles')
+            if xoverpoles:
+                log.debug('setting xover poles %s' % xoverpoles)
+                self.xoverpoles = int(xoverpoles)
+                if self.pipeline:
+                    for channel in self.channel_list:
+                        xlow = self.pipeline.get_by_name('lowpass' + channel)
+                        xlow.set_property('poles', self.xoverpoles)
+                        xhigh = self.pipeline.get_by_name('highpass' + channel)
+                        xhigh.set_property('poles', self.xoverpoles)
 
         buffersize = message.get('buffersize')
         if buffersize:

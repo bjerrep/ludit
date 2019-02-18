@@ -15,6 +15,8 @@ import sys
 import json
 import threading
 
+CONFIG_VERSION = "0.1"
+
 
 class Server(util.Threadbase):
 
@@ -30,7 +32,7 @@ class Server(util.Threadbase):
         self.cant_play_warning = 5
         self.delayed_broadcast = None
 
-        self.input_mux = inputmux.InputMux()
+        self.input_mux = inputmux.InputMux(self.configuration['sources'])
 
         log.info('starting server at %s' % util.local_ip())
         self.launch_playsequencer()
@@ -58,7 +60,10 @@ class Server(util.Threadbase):
         try:
             with open(self.configuration_file) as f:
                 self.configuration = json.loads(f.read())
-            log.info('loaded configuration %s' % self.configuration_file)
+                version = self.configuration['version']
+                log.info('loaded configuration %s' % self.configuration_file)
+                if version != CONFIG_VERSION:
+                    util.die('expected configuration version %s but loaded version %s' % (CONFIG_VERSION, version))
         except:
             log.warning('no configuration file specified (--cfg), using template configuration')
             self.configuration = generate_config()
@@ -66,7 +71,9 @@ class Server(util.Threadbase):
     def save_configuration(self):
         try:
             with open(self.configuration_file, 'w') as f:
-                f.write(json.dumps(self.play_sequencer.current_configuration(), indent=4, default=lambda x : str(x)))
+                config = self.play_sequencer.current_configuration()
+                config.update({'sources': self.configuration['sources']})
+                f.write(json.dumps(config, indent=4, default=lambda x: str(x)))
             log.info('saved configuration in %s' % self.configuration_file)
         except Exception as e:
             log.warning('save configuration failed (see --cfg) - %s' % str(e))
@@ -105,24 +112,9 @@ class Server(util.Threadbase):
             self.save_configuration()
             return
 
-        group = message['group']
-        value = message['value']
+        groupname = message['name']
 
-        if command in ('set_on', 'set_enabled', 'set_volume', 'set_balance',
-                       'set_xoverfreq', 'set_xoverpoles', 'set_highlowbalance',
-                       'set_stereoenhanceenabled', 'set_stereoenhance'):
-
-            raw_cmd = command.replace('set_', '')
-            log.info('ws: setting %s %s to %s' % (group, raw_cmd, value))
-            self.play_sequencer.get_group(group).set_param(raw_cmd, value)
-
-        elif command.startswith('set_band'):
-            band = command[8:]
-            log.info('ws: setting %s band %s to %s' % (group, band, value))
-            self.play_sequencer.get_group(group).set_param_array('equalizer', band, value)
-
-        else:
-            log.error('ws: got unknown command %s' % command)
+        self.play_sequencer.get_group(groupname).set_param(message)
 
         if not self.delayed_broadcast:
             self.delayed_broadcast = threading.Timer(0.05, self.send_broadcast)
@@ -195,49 +187,75 @@ def generate_config():
     }
 
     kitchen = {
-        'legend': 'Kitchen',
-        'name': 'kitchen',
-        'enabled': "on",
-        'on': "on",
-        'volume': '100.0',
-        'balance': '0.0',
-        'stereoenhance': '0.0',
-        'stereoenhanceenabled': 'off',
-        'highlowbalance': '-0.45',
-        'xoverfreq': '1300',
-        'xoverpoles': '4',
-        'devices': [kitchen_device_left, kitchen_device_right],
-        'equalizer': {'0': '12.0', '1': '10.0', '2': '0.0'}
+        'general': {
+            'legend': 'Kitchen',
+            'name': 'kitchen',
+            'enabled': "true",
+            'playing': "false",
+            'devices': [kitchen_device_left, kitchen_device_right],
+        },
+        'levels': {
+            'volume': '100.0',
+            'balance': '0.0',
+            'equalizer': {'0': '12.0', '1': '10.0', '2': '0.0'}
+        },
+        'xover': {
+            'highlowbalance': '-0.45',
+            'freq': '1300',
+            'poles': '4',
+        },
+        'stereoenhance': {
+            'visible': 'true',
+            'depth': '0.0',
+            'enabled': "false",
+        }
     }
 
     stereo_device = {
         'name': 'stereo',
         'channel': 'stereo',
-        'left_device': 'hw:0',
-        'right_device': 'hw:1'
+        'left_alsa_device': 'hw:0',
+        'right_alsa_device': 'hw:1'
     }
 
     stereo = {
-        'legend': 'Stereo',
-        'name': 'stereo',
-        'enabled': "off",
-        'on': "off",
-        'volume': '100.0',
-        'balance': '0.0',
-        'stereoenhance': '0.0',
-        'stereoenhanceenabled': "off",
-        'highlowbalance': '0.0',
-        'xoverfreq': '1200',
-        'xoverpoles': '4',
-        'devices': [stereo_device],
-        'equalizer': {'0': '8.0', '1': '4.0'}
+        'general': {
+            'legend': 'Stereo',
+            'name': 'stereo',
+            'enabled': "true",
+            'playing': "false",
+            'devices': [stereo_device],
+        },
+        'levels': {
+            'volume': '100.0',
+            'balance': '0.0',
+            'equalizer': {'0': '12.0', '1': '10.0', '2': '0.0'}
+        },
+        'xover': {
+            'highlowbalance': '0.0',
+            'freq': '1200',
+            'poles': '4',
+        },
+        'stereoenhance': {
+            'visible': 'true',
+            'depth': '0.0',
+            'enabled': "false",
+        }
     }
 
     configuration = {
+        'version': CONFIG_VERSION,
         'groups': [kitchen, stereo],
         'audiotimeout': '5',
         'playdelay': '0.5',
-        'buffersize': '200000'
+        'buffersize': '200000',
+        'sources': {
+            'mopidy_ws_enabled': 'on',
+            'mopidy_ws_address': util.local_ip(),
+            'mopidy_ws_port': '6680',
+            'mopidy_gst_port': '4666',
+            'gstreamer_port': '4665'
+        }
     }
     return configuration
 

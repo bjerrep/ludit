@@ -19,11 +19,11 @@ class Group(util.Base):
         self.connected_devices = []
         self.jsn = jsn
         self.play_delay = float(jsn['playdelay'])
-        self.groupname = jsn["name"]
+        self.groupname = jsn['general']['name']
         log.info('[%s] group is configuring' % self.groupname)
         self.lock = threading.Lock()
 
-        for device_json in jsn['devices']:
+        for device_json in jsn['general']['devices']:
             _device = device.Device(device_json['name'], self.groupname)
             if not _device.socket.is_alive():
                 raise util.ColdstartException
@@ -47,7 +47,7 @@ class Group(util.Base):
 
     def ready_to_play(self):
         # group can play as long as just a single client is connected
-        return self.connected_devices
+        return self.connected_devices and self.jsn['general']['playing'] == 'true'
 
     def get_devices(self):
         return self.devices
@@ -99,17 +99,30 @@ class Group(util.Base):
 
     def get_configuration(self):
         config = self.jsn.copy()
-        #fixit config.pop('devices', None)
         return config
 
-    def set_param(self, key, value):
-        if value in ('on', 'off'):  # fixit
-            self.jsn[key] = value
-            if key == 'enabled' and value == 'off':
+    def set_param(self, message):
+        try:
+            value = message['param']['general']['playing']
+            self.jsn['general']['playing'] = value
+            if value == 'false':
                 self.stop_playing()
-        else:
-            self.jsn[key] = float(value)
-            self.send({'command': 'configuration', key: value})
+            log.info('[%s] setting %s:%s to %s' % (self.groupname, 'general', 'playing', value))
+        except:
+            param = message['param']
+            key = list(param.keys())[0]
+            tpe = list(param[key].keys())[0]
+            value = list(param[key].values())[0]
+
+            if key == 'levelsequalizer':
+                message.update({'param': {'levels': {'equalizer': {tpe: value}}}})
+                self.jsn['levels']['equalizer'][tpe] = value
+            else:
+                self.jsn[key][tpe] = value
+
+            log.info('[%s] setting %s:%s to %s' % (self.groupname, key, tpe, value))
+
+            self.send(message)
 
     def set_param_array(self, name, key, value):
         self.jsn[name][key] = float(value)

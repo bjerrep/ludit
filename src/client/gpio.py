@@ -5,7 +5,7 @@ from enum import Enum
 try:
     import RPi.GPIO as GPIO
 except Exception as e:
-    log.critical("import RPi.GPIO error: " + str(e) + " running without hardware support")
+    log.critical("import RPi.GPIO error: " + str(e) + " - running without hardware support")
     GPIO = None
 
 

@@ -18,7 +18,7 @@ class PlaySequencer(util.Base):
             group_jsn['playdelay'] = jsn['playdelay']
             group_jsn['buffersize'] = jsn['buffersize']
 
-            group_name = group_jsn['name']
+            group_name = group_jsn['general']['name']
             log.debug('playsequencer, adding group "%s"' % group_name)
             self.audio_timeout = float(jsn['audiotimeout'])
             _group = group.Group(group_jsn)
@@ -26,8 +26,8 @@ class PlaySequencer(util.Base):
             _group.connect('groupdisconnected', self.slot_disconnected)
             _group.connect('status', self.slot_group_status)
             self.groups.update({group_name: _group})
-            if not group_jsn['enabled']:
-                log.info(' - group %s is currently disabled' % group_jsn['name'])
+            if not group_jsn['general']['enabled']:
+                log.info(' - group %s is currently disabled' % group_name)
 
         self.starvation_pause = False
         self.client_buffering_ready = False

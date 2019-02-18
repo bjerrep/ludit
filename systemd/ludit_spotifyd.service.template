@@ -11,6 +11,7 @@ ExecStartPre=-/usr/bin/rm /tmp/spotifyd
 ExecStartPre=-/usr/bin/mkfifo /tmp/spotifyd
 # the chown is optional for non-root to use the fifo
 ExecStartPre=-/bin/chown -R <user:group> /tmp/spotifyd
+# For alternative ways to run the script under systemd see 'ludit_server.service.template'
 ExecStart=<path>/spotifyd --no-daemon --onevent <git root>/config/write_spotifyd_fifo.sh
 Restart=always
 RestartSec=12

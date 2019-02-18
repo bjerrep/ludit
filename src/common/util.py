@@ -33,6 +33,11 @@ class Threadbase(threading.Thread, Connectable):
         return self.terminated
 
 
+def die(message):
+    log.critical(message)
+    exit(1)
+
+
 def make_id(groupname, devicename):
     return "%s:%s" % (groupname, devicename)
 
