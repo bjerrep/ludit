@@ -52,8 +52,8 @@ class Player(util.Threadbase):
     codec = 'pcm'
     master_channel_volumes = [0.0, 0.0]
     balance = 0.0
-    stereoenhance = 0.0
-    stereoenhanceenabled = False
+    stereo_enhance_depth = 0.0
+    stereo_enhance_enabled = False
     highlowbalance = 0.0
     xoverfreq = 1000
     xoverpoles = 4
@@ -119,14 +119,14 @@ class Player(util.Threadbase):
             lo, hi = self.calculate_highlowbalance(self.highlowbalance)
             self.set_volume(None)
 
-            stereoenhance_element = ''
-            if self.stereoenhanceenabled:
-                stereoenhance_element = 'audioconvert ! stereo stereo=%f ! ' % self.stereoenhance
+            stereo_enhance_element = ''
+            if self.stereo_enhance_enabled:
+                stereo_enhance_element = 'audioconvert ! stereo stereo=%f ! ' % self.stereo_enhance_depth
 
             pipeline = (
                 'appsrc name=audiosource emit-signals=true max-bytes=%i ! %s %s '
                 'audioconvert ! audio/x-raw,format=F32LE,channels=2 ! queue ! deinterleave name=d ' %
-                (buffer_size, decoding, stereoenhance_element))
+                (buffer_size, decoding, stereo_enhance_element))
 
             for channel in self.channel_list:
                 try:
@@ -348,16 +348,17 @@ class Player(util.Threadbase):
                                 eq = self.pipeline.get_by_name('equalizer' + channel)
                                 eq.set_property('band%i' % band, self.eq_band_gain[band])
 
-        stereoenhance = message.get('stereoenhance')
-        if stereoenhance:
-            stereoenhance_depth = stereoenhance.get('depth')
-            if stereoenhance_depth:
-                log.debug('setting stereoenhance depth %s' % stereoenhance_depth)
-                self.stereoenhance = float(stereoenhance_depth)
+        stereo_enhance = message.get('stereoenhance')
+        if stereo_enhance:
+            stereo_enhance_depth = stereo_enhance.get('depth')
+            if stereo_enhance_depth:
+                log.debug('setting stereoenhance depth %s' % stereo_enhance_depth)
+                self.stereo_enhance_depth = float(stereo_enhance_depth)
 
-            stereoenhance_enabled = stereoenhance.get('enabled') == 'true'
-            if stereoenhance_enabled:
-                log.debug('setting stereoenhance enable %s' % stereoenhance_enabled)
+            stereo_enhance_enabled = stereo_enhance.get('enabled')
+            if stereo_enhance_enabled:
+                log.debug('setting stereoenhance enable %s' % stereo_enhance_enabled)
+                self.stereo_enhance_enabled = stereo_enhance_enabled == 'true'
 
         xover = message.get('xover')
         if xover:
