@@ -2,6 +2,7 @@ from common.log import logger as log
 import socket
 import threading
 import subprocess
+import sys
 from connectable import Connectable
 
 NS_IN_SEC = 1000000000
@@ -11,9 +12,6 @@ multicast_port = 45655
 
 remote_multicast_ip = multicast_ip
 remote_multicast_port = multicast_port + 1
-
-server_ludit_websocket_port = 45658
-server_monitor_websocket_port = 45659
 
 
 class Base(Connectable):
@@ -33,9 +31,9 @@ class Threadbase(threading.Thread, Connectable):
         return self.terminated
 
 
-def die(message):
+def die(message, exit_code=1):
     log.critical(message)
-    exit(1)
+    sys.exit(exit_code)
 
 
 def make_id(groupname, devicename):

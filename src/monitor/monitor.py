@@ -11,6 +11,9 @@ import signal
 import sys
 
 
+monitor_websocket_port = 45659
+
+
 class Monitor(util.Threadbase):
 
     SERVER_PING_SECONDS = 4
@@ -20,7 +23,7 @@ class Monitor(util.Threadbase):
         super(Monitor, self).__init__()
         self.multicast = multicast.Server(util.remote_multicast_ip, util.remote_multicast_port)
         self.multicast.connect('server_receive', self.multicast_rx)
-        self.ws = websocket.WebSocket(util.local_ip(), util.server_monitor_websocket_port)
+        self.ws = websocket.WebSocket(util.local_ip(), monitor_websocket_port)
         self.ws.connect('message', self.websocket_rx)
         self.start()
         self.bt = bluetooth_metrics.BTDiscoverer()

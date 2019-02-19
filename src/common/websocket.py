@@ -41,6 +41,7 @@ class WebSocket(util.Threadbase):
         global emitter
         super(WebSocket, self).__init__()
         emitter = self
+        port = int(port)
         log.info('starting websocket on %s:%i' % (ip, port))
         self.server = SimpleWebSocketServer(ip, port, WebsocketClient)
         self.start()

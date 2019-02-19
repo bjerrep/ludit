@@ -67,6 +67,7 @@ class PlaySequencer(util.Base):
         config['playdelay'] = self.jsn['playdelay']
         config['buffersize'] = self.jsn['buffersize']
         config['audiotimeout'] = self.jsn['audiotimeout']
+        config['version'] = self.jsn['version']
         return config
 
     def send_to_groups(self, packet):

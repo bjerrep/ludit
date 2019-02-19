@@ -151,7 +151,7 @@ class Player(util.Threadbase):
                      channel, self.xoverpoles, channel, self.xoverfreq, eq_setup, channel, lo, channel,
                      channel, self.xoverpoles, channel, self.xoverfreq, channel, hi, channel))
 
-            # print(pipeline)
+            print(pipeline) # fixit
 
             log.info('launching pipeline ...')
             self.pipeline = Gst.parse_launch(pipeline)

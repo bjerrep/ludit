@@ -32,7 +32,8 @@ class Server(util.Threadbase):
         self.cant_play_warning = 5
         self.delayed_broadcast = None
 
-        self.input_mux = inputmux.InputMux(self.configuration['sources'])
+        source_config = self.configuration['sources']
+        self.input_mux = inputmux.InputMux(source_config)
 
         log.info('starting server at %s' % util.local_ip())
         self.launch_playsequencer()
@@ -40,7 +41,7 @@ class Server(util.Threadbase):
         self.multicast = multicast.Server(util.multicast_ip, util.multicast_port)
         self.multicast.connect('server_receive', self.multicast_rx)
 
-        self.ws = websocket.WebSocket(util.local_ip(), util.server_ludit_websocket_port)
+        self.ws = websocket.WebSocket(util.local_ip(), source_config['ludit_websocket_port'])
         self.ws.connect('message', self.websocket_rx)
 
         self.start()
@@ -60,11 +61,11 @@ class Server(util.Threadbase):
         try:
             with open(self.configuration_file) as f:
                 self.configuration = json.loads(f.read())
-                version = self.configuration['version']
+                version = self.configuration.get('version')
                 log.info('loaded configuration %s' % self.configuration_file)
                 if version != CONFIG_VERSION:
-                    util.die('expected configuration version %s but loaded version %s' % (CONFIG_VERSION, version))
-        except:
+                    util.die('expected configuration version %s but found version %s' % (CONFIG_VERSION, version))
+        except Exception:
             log.warning('no configuration file specified (--cfg), using template configuration')
             self.configuration = generate_config()
 
@@ -250,11 +251,12 @@ def generate_config():
         'playdelay': '0.5',
         'buffersize': '200000',
         'sources': {
-            'mopidy_ws_enabled': 'on',
+            'mopidy_ws_enabled': 'false',
             'mopidy_ws_address': util.local_ip(),
             'mopidy_ws_port': '6680',
             'mopidy_gst_port': '4666',
-            'gstreamer_port': '4665'
+            'gstreamer_port': '4665',
+            'ludit_websocket_port': '45658'
         }
     }
     return configuration
