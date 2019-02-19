@@ -8,6 +8,7 @@ import queue
 import threading
 import time
 import gi
+import os
 gi.require_version('Gst', '1.0')
 from gi.repository import GLib, GObject, Gst
 GObject.threads_init()
@@ -62,9 +63,12 @@ class InputMux(util.Threadbase):
         return 'inputmux'
 
     def gst_mainloop_thread(self):
-        self.mainloop = GLib.MainLoop()
-        self.mainloop.run()
-        log.debug('gst mainloop exits')
+        try:
+            self.mainloop = GLib.MainLoop()
+            self.mainloop.run()
+            log.debug('gst mainloop exits')
+        except:
+            os.kill(os.getpid(), os.WNOHANG)
 
     def stop_playing(self):
         self.now_playing = None
