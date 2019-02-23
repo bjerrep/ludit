@@ -3,6 +3,7 @@ import socket
 import threading
 import subprocess
 import sys
+import os
 from connectable import Connectable
 
 NS_IN_SEC = 1000000000
@@ -31,9 +32,12 @@ class Threadbase(threading.Thread, Connectable):
         return self.terminated
 
 
-def die(message, exit_code=1):
+def die(message, exit_code=1, hard_exit=False):
     log.critical(message)
-    sys.exit(exit_code)
+    if hard_exit:
+        os.kill(os.getpid(), os.WNOHANG)
+    else:
+        sys.exit(exit_code)
 
 
 def make_id(groupname, devicename):
@@ -79,6 +83,15 @@ def execute_get_output(command):
         return output.decode()
     except subprocess.CalledProcessError:
         return None
+
+
+def get_pid_lock(process_name):
+    # https://stackoverflow.com/a/7758075
+    get_pid_lock._lock_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        get_pid_lock._lock_socket.bind('\0' + process_name)
+    except socket.error:
+        die('pid lock "%s" already exists, exiting now' % process_name, 1, True)
 
 
 class MalformedPacketException(Exception):

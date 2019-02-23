@@ -8,5 +8,5 @@ src/*.cfg
 
 src/export*
 
-ludit_local*.json
-ludit_local.json.*
+# the ludit_local.js.template is force added, ignore all other copies
+ludit_local*

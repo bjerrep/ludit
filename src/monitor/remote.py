@@ -97,6 +97,8 @@ def start():
                         help='unique identifier', required=True)
     results = parser.parse_args()
 
+    util.get_pid_lock('ludit_remote')
+
     def ctrl_c_handler(_, __):
         try:
             print(' ctrl-c handler')

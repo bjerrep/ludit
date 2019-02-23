@@ -27,10 +27,10 @@
     input[type=checkbox]
     {
       /* Double-sized Checkboxes */
-      -ms-transform: scale(2); /* IE */
-      -moz-transform: scale(2); /* FF */
-      -webkit-transform: scale(2); /* Safari and Chrome */
-      -o-transform: scale(2); /* Opera */
+      -ms-transform: scale(1.5); /* IE */
+      -moz-transform: scale(1.5); /* FF */
+      -webkit-transform: scale(1.5); /* Safari and Chrome */
+      -o-transform: scale(1.5); /* Opera */
       padding: 10px;
       margin-top: 25px;
     }
@@ -144,7 +144,7 @@
 <script src="js.js"></script>
 <script src="jquery-treetable-3.2.0/jquery.treetable.js"></script>
 <script src="hurkanSwitch/hurkanSwitch.js"></script>
-
+<script src="ludit_local.js"></script>
 
 <script>
 $("#table_metrics").treetable({ expandable: true });
@@ -166,15 +166,13 @@ $("#table_metrics").treetable({ expandable: true });
     var max_delta_time_series = null;
     var _max_delta_chart = null;
 
-    // https://stackoverflow.com/a/41818235
     try {
-        var ludit_setup = JSON.parse($.getJSON({'url': "ludit_local.json", 'async': false}).responseText);
-        console.log('connecting to ludit ws address ' + ludit_setup["ludit"]["address"])
+        let _ = ludit_setup['ludit']
     }
     catch(err) {
-       alert("Missing file: 'ludit_local.json' not found. Make a local copy of 'ludit_local.json.template'");
+        alert("Missing or invalid file: 'ludit_local.js' not found. Make a local copy of 'ludit_local.js.template'");
     }
-
+    
     class ChannelInfo {
         constructor(name, timeseries, color) {
             this._name = name;
@@ -486,11 +484,11 @@ $("#table_metrics").treetable({ expandable: true });
 
     function start_max_delta_chart() {
         console.log('start_max_delta_chart');
-        twitse_send( {"command": "get_max_delta_history"});
         ButtonHours(24);
     }
 
     function ButtonHours(_hours) {
+        twitse_send( {"command": "get_max_delta_history"});
         if (_hours == 7*24)
             $("#max_offsets_chart_timespan").text("Timespan : Week");
         else if (_hours == 24)

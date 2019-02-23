@@ -14,7 +14,7 @@ The currently supported audio sources are
 Audio source: spotifyd
 ***********************
 
-Spotifyd enables Ludit as an 'Spotify Connect' audio player in e.g. the Spotify list called 'Connect to device'.
+Spotifyd enables Ludit as an 'Spotify Connect' audio player in e.g. the Spotify list called 'Connect to device' seen by selecting 'Devices Available' during playing.
 There are ready made binaries for RPI, on x86 follow the upstream `spotifyd <https://github.com/Spotifyd/spotifyd>`_ instructions.
 
 PCM audio from spotifyd is recorded with an Alsa loopback device. Install ./config/modules-load.d/raspberrypi.conf from the repository in /etc/modules.d on the server. This will make the snd-aloop kernel module load at boot which setups the loopback device. Check that the loopback device is device 1 and the onboard bcm2835 is device 0.
@@ -54,6 +54,22 @@ Use the fork `here <https://github.com/bjerrep/bluez-alsa/>`_. Building instruct
 Get bluetooth running as the first thing, including pairing and trusting the source devices.
 
 For starting bluealsa manually have a look at the systemd file in ./systemd/bluealsa.service.template (in the bluealsa fork repository !). Like for spotifyd it shows how to create a /tmp/audio fifo and a typical spotifyd launch line.
+
+
+Audio source: Mopidy
+*********************
+It would be kind of rude not to add Mopidy as an audio source since Mopidy uses gstreamer and exposes its playing pipeline directly in its configurationfile. Mopidy plays just about everything but for development it has only been tested with a standard MPD client. So the state of the Mopidy audio source in this project will realisticly be something like 'under development'.
+
+The Mopidy playing pipeline in ~/.config/mopidy/mopidy.conf should be changed to::
+    
+    output = audioconvert ! audio/x-raw, channels=2 ! faac ! aacparse ! avmux_adts ! tcpclientsink host=<server> port=4666 sync=true
+
+Mopidy sends general play state events on a websocket that Ludit needs to subscribe to. There are 4 configuration values in the Ludit configurationfile that needs to get adjusted::
+
+    mopidy_ws_enabled': 'true'
+    mopidy_ws_address': ip where Mopidy is running
+    mopidy_ws_port': the http port in the Mopidy configuration file
+    mopidy_gst_port': the tcpclientsink port in the Mopidy playing pipeline above
 
 
 Audio source : gstreamer

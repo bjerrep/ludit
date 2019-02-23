@@ -16,7 +16,7 @@ Ludit
 Introduction
 ============
 
-Ludit is an audioplayer made for an wireless audio system using `Twitse <https://github.com/bjerrep/twitse/>`_ for time synchronisation. Twitse is completely standalone and couldn't care less about Ludit or any other players for that matter. Ludit on the other hand relies on a running Twitse to keep the various computers in time sync, Ludit does not know how to correct audio with regard to crystal drift.
+Ludit is an audioplayer made for an wireless audio system using `Twitse <https://github.com/bjerrep/twitse/>`_ for time synchronisation. Twitse is completely standalone and couldn't care less about Ludit or any other players for that matter. Ludit on the other hand relies on a running Twitse to keep the various computers in time sync since Ludit does not know how to correct audio with regard to crystal drift. 
 
 
 Indices and tables

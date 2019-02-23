@@ -151,7 +151,7 @@ class Player(util.Threadbase):
                      channel, self.xoverpoles, channel, self.xoverfreq, eq_setup, channel, lo, channel,
                      channel, self.xoverpoles, channel, self.xoverfreq, channel, hi, channel))
 
-            print(pipeline) # fixit
+            #  print(pipeline)
 
             log.info('launching pipeline ...')
             self.pipeline = Gst.parse_launch(pipeline)
@@ -186,7 +186,6 @@ class Player(util.Threadbase):
                 volume_element = self.pipeline.get_by_name('vol%s' % channel)
                 volume_element.set_property('volume', channel_vol)
 
-    # fixit, should be constant power
     def set_balance(self, balance):
         self.balance = balance
         log.debug('setting balance %.2f' % self.balance)

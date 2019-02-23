@@ -128,6 +128,8 @@ class Monitor(util.Threadbase):
 
 
 def start():
+    util.get_pid_lock('ludit_monitor')
+
     def ctrl_c_handler(_, __):
         try:
             print(' ctrl-c handler')

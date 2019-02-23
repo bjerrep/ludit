@@ -57,7 +57,7 @@ class Client(util.Threadbase):
                 if endpoint == "None":
                     log.critical("server refused the connection (check the --id)")
                     time.sleep(1)
-                    exit(1)
+                    util.die('exiting..', 1, True)
                 log.info('server found, connecting to %s' % endpoint)
                 self.server_endpoint = util.split_tcp(endpoint)
                 self.start_socket()
@@ -152,8 +152,13 @@ def start():
                             help='required identifier in the form groupname:devicename', required=True)
         parser.add_argument('--verbose', action='store_true',
                             help='enable more logging')
+        parser.add_argument('--nocheck', action='store_true',
+                            help='don\'t check for multiple client instances')
 
         results = parser.parse_args()
+
+        if not results.nocheck:
+            util.get_pid_lock('ludit_client')
 
         if results.verbose:
             log.setLevel(logging.DEBUG)

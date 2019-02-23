@@ -192,13 +192,13 @@ def generate_config():
             'legend': 'Kitchen',
             'name': 'kitchen',
             'enabled': "true",
-            'playing': "false",
+            'playing': "true",
             'devices': [kitchen_device_left, kitchen_device_right],
         },
         'levels': {
-            'volume': '100.0',
+            'volume': '10.0',
             'balance': '0.0',
-            'equalizer': {'0': '12.0', '1': '10.0', '2': '0.0'}
+            'equalizer': {'0': '12.0', '1': '10.0', '2': '3.0'}
         },
         'xover': {
             'highlowbalance': '-0.45',
@@ -206,7 +206,7 @@ def generate_config():
             'poles': '4',
         },
         'stereoenhance': {
-            'visible': 'true',
+            'visible': 'false',
             'depth': '0.0',
             'enabled': "false",
         }
@@ -223,12 +223,12 @@ def generate_config():
         'general': {
             'legend': 'Stereo',
             'name': 'stereo',
-            'enabled': "true",
+            'enabled': "false",
             'playing': "false",
             'devices': [stereo_device],
         },
         'levels': {
-            'volume': '100.0',
+            'volume': '10.0',
             'balance': '0.0',
             'equalizer': {'0': '12.0', '1': '10.0', '2': '0.0'}
         },
@@ -238,7 +238,7 @@ def generate_config():
             'poles': '4',
         },
         'stereoenhance': {
-            'visible': 'true',
+            'visible': 'false',
             'depth': '0.0',
             'enabled': "false",
         }
@@ -276,6 +276,8 @@ def start():
                             help='enable more logging')
 
         results = parser.parse_args()
+
+        util.get_pid_lock('ludit_server')
 
         if results.verbose:
             log.setLevel(logging.DEBUG)

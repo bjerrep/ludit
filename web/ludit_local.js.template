@@ -1,3 +1,4 @@
+var ludit_setup =
 {
     "ludit" : {"address": "ludit", "port": 45658},
     "monitor" : {"address": "ludit", "port": 45659},
