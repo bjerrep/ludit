@@ -49,6 +49,6 @@ On the PC audio output the woofer signal will be in one channel and the tweeter 
 Web
 ****
 
-Finally go to ./web and open index.html in a webbrowser. The first two tabs connects directly to the Ludit server and should be operational.
+Finally go to ./web and make a copy of ludit_local.js.template called ludit_local.js and fill in the correct ip or hostname. Then open index.html in a webbrowser and the first two tabs should be operational as they connect directly to the Ludit server.
 
 .. image:: images/quick_start_web.png
