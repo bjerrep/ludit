@@ -151,7 +151,7 @@ class Player(util.Threadbase):
                      channel, self.xoverpoles, channel, self.xoverfreq, eq_setup, channel, lo, channel,
                      channel, self.xoverpoles, channel, self.xoverfreq, channel, hi, channel))
 
-            #  print(pipeline)
+            print(pipeline)
 
             log.info('launching pipeline ...')
             self.pipeline = Gst.parse_launch(pipeline)
@@ -298,27 +298,35 @@ class Player(util.Threadbase):
             log.critical("got unknown command '%s'" % command)
 
     def configure_pipeline(self, message):
-        channel = message.get('channel')
-        if channel:
-            channel = Channel[channel.upper()]
-            self.channel_list = []
-            log.info("processing setup '%s'. %s" % (message.get('name'), channel))
-            if channel == Channel.LEFT or channel == Channel.STEREO:
-                self.channel_list.append('0')
-                try:
-                    device = message['general']['devices']['left_alsa_device']
-                    self.alsa_hw_device['0'] = "device=%s" % device
-                    log.debug("left alsa device is %s" % device)
-                except:
-                    self.alsa_hw_device['0'] = ''
-            if channel == Channel.RIGHT or channel == Channel.STEREO:
-                self.channel_list.append('1')
-                try:
-                    device = message['general']['devices']['right_alsa_device']
-                    self.alsa_hw_device['1'] = "device=%s" % device
-                    log.debug("right alsa device is %s" % device)
-                except:
-                    self.alsa_hw_device['1'] = ''
+        try:
+            devices = message['general']['devices']
+            channel = devices['channel']
+            if channel:
+                self.alsa_hw_device['0'] = ''
+                self.alsa_hw_device['1'] = ''
+                channel = Channel[channel.upper()]
+                self.channel_list = []
+
+                log.info("processing setup '%s'. %s" % (message.get('name'), channel))
+                if channel == Channel.LEFT or channel == Channel.STEREO:
+                    self.channel_list.append('0')
+                    try:
+                        device = devices['left_alsa_device']
+                        self.alsa_hw_device['0'] = "device=%s" % device
+                        log.debug("left alsa device is %s" % device)
+                    except:
+                        pass
+
+                if channel == Channel.RIGHT or channel == Channel.STEREO:
+                    self.channel_list.append('1')
+                    try:
+                        device = devices['right_alsa_device']
+                        self.alsa_hw_device['1'] = "device=%s" % device
+                        log.debug("right alsa device is %s" % device)
+                    except:
+                        pass
+        except:
+            pass
 
         levels = message.get('levels')
         if levels:
