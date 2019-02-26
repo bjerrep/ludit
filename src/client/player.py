@@ -299,32 +299,32 @@ class Player(util.Threadbase):
 
     def configure_pipeline(self, message):
         try:
-            devices = message['general']['devices']
-            channel = devices['channel']
+            channel_name = message['channel']
+            channel = Channel[channel_name.upper()]
             if channel:
-                self.alsa_hw_device['0'] = ''
-                self.alsa_hw_device['1'] = ''
-                channel = Channel[channel.upper()]
                 self.channel_list = []
+                for device in message['general']['devices']:
+                    if device['name'] == channel_name:
+                        break
 
                 log.info("processing setup '%s'. %s" % (message.get('name'), channel))
                 if channel == Channel.LEFT or channel == Channel.STEREO:
                     self.channel_list.append('0')
                     try:
-                        device = devices['left_alsa_device']
-                        self.alsa_hw_device['0'] = "device=%s" % device
-                        log.debug("left alsa device is %s" % device)
+                        alsa_device = device['left_alsa_device']
+                        self.alsa_hw_device['0'] = "device=%s" % alsa_device
+                        log.debug("left alsa device is %s" % alsa_device)
                     except:
-                        pass
+                        self.alsa_hw_device['0'] = ''
 
                 if channel == Channel.RIGHT or channel == Channel.STEREO:
                     self.channel_list.append('1')
                     try:
-                        device = devices['right_alsa_device']
-                        self.alsa_hw_device['1'] = "device=%s" % device
-                        log.debug("right alsa device is %s" % device)
+                        alsa_device = device['right_alsa_device']
+                        self.alsa_hw_device['1'] = "device=%s" % alsa_device
+                        log.debug("right alsa device is %s" % alsa_device)
                     except:
-                        pass
+                        self.alsa_hw_device['1'] = ''
         except:
             pass
 
