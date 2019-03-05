@@ -57,6 +57,7 @@ class Group(util.Base):
         self.send({'command': 'playing', 'playtime': str(play_time)})
 
     def stop_playing(self):
+        log.debug('%s send stop playing' % self.groupname)
         self.send({'command': 'stopping'})
 
     def terminate(self):

@@ -92,6 +92,8 @@ class PlaySequencer(util.Base):
     def state_changed(self, new_state):
         global AudioQueue
         if self.m_state != new_state:
+            log.debug('state changing from %s to %s' % (self.m_state, new_state))
+            self.m_state = new_state
             now = time.time()
             for _group in self.playing_groups():
                 if new_state == group.State.BUFFERING:
@@ -102,7 +104,8 @@ class PlaySequencer(util.Base):
                     _group.start_playing(now)
                 else:
                     log.critical('internal error #0082')
-            self.m_state = new_state
+        else:
+            log.debug('ignoring a state change request from %s to %s' % (self.m_state, new_state))
 
     def playing_groups(self):
         return [group for group in self.groups.values() if group.ready_to_play()]
