@@ -25,15 +25,13 @@ class ClientSocket(util.Threadbase):
     def run(self):
         log.debug('starting clientsocket at %s' % util.tcp2str(self.endpoint))
         log_waiting = True
-        try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        except Exception as e:
-            log.critical(self.name + str(e))
-
         while not self.terminated:
             try:
                 if not self.connected:
                     try:
+                        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
                         rxdata = bytearray()
                         self.socket.settimeout(5.0)
                         self.socket.connect(self.endpoint)
@@ -42,6 +40,7 @@ class ClientSocket(util.Threadbase):
                         log_waiting = True
                         log.info('connected to server at %s' % util.tcp2str(self.endpoint))
                         self.emit('socket', 'open')
+
                     except (TimeoutError, socket.timeout):
                         if log_waiting:
                             log.info("waiting for server")
@@ -49,6 +48,9 @@ class ClientSocket(util.Threadbase):
                         self.connected = False
                         time.sleep(1)
                         raise util.ExpectedException
+                    except Exception as e:
+                        log.critical(self.name + str(e))
+                        raise e
 
                 try:
                     blob = self.socket.recv(self.buffer_size)
