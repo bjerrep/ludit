@@ -15,13 +15,13 @@ import sys
 import json
 import threading
 
-CONFIG_VERSION = "0.1"
-
 
 class Server(util.Threadbase):
 
     def __init__(self, configuration_file):
         super(Server, self).__init__(name='server    ')
+
+        log.info('starting server at %s' % util.local_ip())
 
         self.configuration_file = configuration_file
         self.configuration = None
@@ -32,13 +32,15 @@ class Server(util.Threadbase):
         self.cant_play_warning = 5
         self.delayed_broadcast = None
 
+        self.launch_playsequencer()
+
         source_config = self.configuration['sources']
         self.input_mux = inputmux.InputMux(source_config)
 
-        log.info('starting server at %s' % util.local_ip())
-        self.launch_playsequencer()
+        self.multicast = multicast.Server(
+            self.configuration['multicast']['ip'],
+            int(self.configuration['multicast']['port']))
 
-        self.multicast = multicast.Server(util.multicast_ip, util.multicast_port)
         self.multicast.connect('server_receive', self.multicast_rx)
 
         self.ws = websocket.WebSocket(util.local_ip(), source_config['ludit_websocket_port'])
@@ -63,8 +65,8 @@ class Server(util.Threadbase):
                 self.configuration = json.loads(f.read())
                 version = self.configuration.get('version')
                 log.info('loaded configuration %s' % self.configuration_file)
-                if version != CONFIG_VERSION:
-                    util.die('expected configuration version %s but found version %s' % (CONFIG_VERSION, version))
+                if version != util.CONFIG_VERSION:
+                    util.die('expected configuration version %s but found version %s' % (util.CONFIG_VERSION, version))
         except Exception:
             log.warning('no configuration file specified (--cfg), using template configuration')
             self.configuration = generate_config()
@@ -245,7 +247,7 @@ def generate_config():
     }
 
     configuration = {
-        'version': CONFIG_VERSION,
+        'version': util.CONFIG_VERSION,
         'groups': [kitchen, stereo],
         'audiotimeout': '5',
         'playdelay': '0.5',
@@ -256,7 +258,21 @@ def generate_config():
             'mopidy_ws_port': '6680',
             'mopidy_gst_port': '4666',
             'gstreamer_port': '4665',
-            'ludit_websocket_port': '45658'
+            'ludit_websocket_port': '45658',
+            'audiominblocksize': '3000',
+            'alsasource': {
+                'enabled': 'false',
+                'device': 'hw:0',
+                'timeout': '5.0',
+                'threshold_dB': '-40.0'
+            }
+        },
+        'multicast': {
+            'ip': util.multicast_ip,
+            'port': str(util.multicast_port)
+        },
+        'inputmux': {
+
         }
     }
     return configuration
@@ -311,4 +327,4 @@ def start():
         log.info('server exiting')
 
     except Exception as e:
-        log.critical('server exception: %s' % str(e))
+        util.die('server exception: %s' % str(e))

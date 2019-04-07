@@ -44,7 +44,7 @@ class SourceSpotifyd(util.Threadbase):
             elif message.type == Gst.MessageType.ERROR:
                 err, deb = message.parse_error()
                 log.critical("pipeline error: %s '%s'" % (err, deb))
-                self.emit('status', 'pipeline_error')
+                self.send_event('status', 'pipeline_error')
             elif message.type == Gst.MessageType.STATE_CHANGED:
                 old_state, new_state, pending_state = message.parse_state_changed()
                 if message.src == self.pipeline:

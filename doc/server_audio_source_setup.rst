@@ -58,7 +58,7 @@ For starting bluealsa manually have a look at the systemd file in ./systemd/blue
 
 Audio source: Mopidy
 *********************
-It would be kind of rude not to add Mopidy as an audio source since Mopidy uses gstreamer and exposes its playing pipeline directly in its configurationfile. Mopidy plays just about everything but for development it has only been tested with a standard MPD client. So the state of the Mopidy audio source in this project will realisticly be something like 'under development'.
+It would be kind of rude not to add Mopidy as an audio source since Mopidy uses gstreamer and exposes its playing pipeline directly in its configurationfile. Mopidy plays just about everything but for Ludit integration it has only been tested with a standard MPD client. So the state of the Mopidy audio source in this project will realisticly be something like 'under development'.
 
 The Mopidy playing pipeline in ~/.config/mopidy/mopidy.conf should be changed to::
     
@@ -70,6 +70,15 @@ Mopidy sends general play state events on a websocket that Ludit needs to subscr
     mopidy_ws_address': ip where Mopidy is running
     mopidy_ws_port': the http port in the Mopidy configuration file
     mopidy_gst_port': the tcpclientsink port in the Mopidy playing pipeline above
+
+While developing Mopidy refused the webconnection from the Ludit server. A quick hack is to edit 'handlers.py' in the Mopidy sources. Edit the check_origin function to end with
+
+    #if parsed_origin and parsed_origin not in allowed_origins:
+    #   logger.warn('HTTP request denied for Origin "%s"', origin)
+    #    return False
+    return True
+
+For reference see https://github.com/mopidy/mopidy/pull/1712/commits/6e9ed9e8a9d4734671756ceeebf2059657ea2ab5. What the real fix is remains to be figured out.
 
 
 Audio source : gstreamer

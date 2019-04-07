@@ -8,6 +8,8 @@ from connectable import Connectable
 
 NS_IN_SEC = 1000000000
 
+CONFIG_VERSION = "0.2"
+
 multicast_ip = '225.168.1.102'
 multicast_port = 45655
 

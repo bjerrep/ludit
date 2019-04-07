@@ -111,7 +111,6 @@ class PlaySequencer(util.Base):
         return [group for group in self.groups.values() if group.ready_to_play()]
 
     def new_audio(self, audio):
-
         new_state = self.m_state
 
         if self.m_state == group.State.STOPPED:
