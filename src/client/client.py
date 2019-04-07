@@ -9,13 +9,14 @@ import time
 import signal
 import argparse
 import threading
+import json
 
 
 class Client(util.Threadbase):
-    def __init__(self, groupname, devicename):
+    def __init__(self, configuration):
         super(Client, self).__init__(name='client    ')
-        self.groupname = groupname
-        self.devicename = devicename
+        self.groupname = configuration['group']
+        self.devicename = configuration['device']
         self.id = '%s:%s' % (self.groupname, self.devicename)
         log.info('starting client %s' % self.id)
         self.server_endpoint = None
@@ -27,7 +28,11 @@ class Client(util.Threadbase):
         self.server_offline_counter = 10
         self.socket_lock = threading.Lock()
 
-        self.multicast = multicast.Client(self.id, util.multicast_ip, util.multicast_port)
+        self.multicast = multicast.Client(
+            self.id,
+            configuration['multicast']['ip'],
+            int(configuration['multicast']['port']))
+
         self.multicast.connect('client_receive', self.multicast_rx)
 
         server_connector_thread = threading.Thread(target=self.server_connector, args=())
@@ -55,7 +60,7 @@ class Client(util.Threadbase):
             if not self.socket:
                 endpoint = message['endpoint']
                 if endpoint == "None":
-                    log.critical("server refused the connection (check the --id)")
+                    log.critical("server refused the connection (check the group and device name)")
                     time.sleep(1)
                     util.die('exiting..', 1, True)
                 log.info('server found, connecting to %s' % endpoint)
@@ -142,6 +147,31 @@ class Client(util.Threadbase):
         log.debug('client exits')
 
 
+def generate_config():
+    configuration = {
+        'version': util.CONFIG_VERSION,
+        'multicast': {
+            'ip': util.multicast_ip,
+            'port': str(util.multicast_port)
+        }
+    }
+    return configuration
+
+
+def load_configuration(configuration_file):
+    try:
+        with open(configuration_file) as f:
+            configuration = json.loads(f.read())
+            version = configuration.get('version')
+            log.info('loaded configuration %s' % configuration_file)
+            if version != util.CONFIG_VERSION:
+                util.die('expected configuration version %s but found version %s' % (util.CONFIG_VERSION, version))
+    except Exception:
+        log.warning('no configuration file specified (--cfg), using defaults')
+        configuration = generate_config()
+    return configuration
+
+
 def start():
     """
     Use the run_client.py script in ./src
@@ -149,13 +179,25 @@ def start():
     try:
         parser = argparse.ArgumentParser('Ludit client')
         parser.add_argument('--id', action='store', dest='id',
-                            help='required identifier in the form groupname:devicename', required=True)
+                            help='required identifier in the form groupname:devicename')
+        parser.add_argument('--newcfg', action='store_true', dest='newcfg',
+                            help='dump template configuration file to stdout')
+        parser.add_argument('--cfg', dest='cfg',
+                            help='configuration file to use (optional)')
         parser.add_argument('--verbose', action='store_true',
                             help='enable more logging')
         parser.add_argument('--nocheck', action='store_true',
                             help='don\'t check for multiple client instances')
 
         results = parser.parse_args()
+
+        if results.newcfg:
+            configuration = generate_config()
+            configuration['group'] = 'edit_or_delete'
+            configuration['device'] = 'edit_or_delete'
+            config = json.dumps(configuration, indent=4, sort_keys=True)
+            print(config)
+            exit(0)
 
         if not results.nocheck:
             util.get_pid_lock('ludit_client')
@@ -164,9 +206,17 @@ def start():
             log.setLevel(logging.DEBUG)
 
         try:
-            groupname, devicename = results.id.split(':')
+            configuration = load_configuration(results.cfg)
         except:
-            raise Exception('need a group:device name pair')
+            configuration = generate_config()
+
+        try:
+            groupname, devicename = results.id.split(':')
+            configuration['group'] = groupname
+            configuration['device'] = devicename
+        except:
+            if not configuration.get('group'):
+                raise Exception('need a group:device name pair from arguments or configuration file')
 
         def ctrl_c_handler(_, __):
             try:
@@ -182,7 +232,7 @@ def start():
         signal.signal(signal.SIGINT, ctrl_c_handler)
 
         _client = None
-        _client = Client(groupname, devicename)
+        _client = Client(configuration)
         _client.join()
 
         log.info('client exiting')
