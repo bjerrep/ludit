@@ -2,6 +2,7 @@ from server import sourcefifo
 from server import sourcetcp
 from server import sourcespotifyd
 from server import sourcemopidy
+from server import sourcealsa
 from common.log import logger as log
 from common import util
 import queue
@@ -32,18 +33,27 @@ class InputMux(util.Threadbase):
         self.audio_buffer = bytearray()
 
         self.sourcefifo = sourcefifo.SourceFifo()
-        self.sourcefifo.connect("event", self.input_event)
+        self.sourcefifo.connect('event', self.input_event)
         self.sourcetcp = sourcetcp.SourceTCP(source_config['gstreamer_port'])
-        self.sourcetcp.connect("event", self.input_event)
+        self.sourcetcp.connect('event', self.input_event)
         self.sourcespotifyd = sourcespotifyd.SourceSpotifyd()
-        self.sourcespotifyd.connect("event", self.input_event)
+        self.sourcespotifyd.connect('event', self.input_event)
         if source_config['mopidy_ws_enabled'] == 'on':
             self.source_mopidy = sourcemopidy.SourceMopidy(source_config['mopidy_ws_address'],
                                                            source_config['mopidy_ws_port'],
                                                            source_config['mopidy_gst_port'])
-            self.source_mopidy.connect("event", self.input_event)
+            self.source_mopidy.connect('event', self.input_event)
         else:
             self.source_mopidy = None
+
+        try:
+            if source_config['alsasource']['enabled'] == 'true':
+                self.alsasrc = sourcealsa.SourceAlsa(source_config['alsasource'])
+                self.alsasrc.connect('event', self.input_event)
+        except:
+            self.alsasrc = None
+
+        self.audiominblocksize = int(source_config['audiominblocksize'])
 
         threading.Thread(target=self.gst_mainloop_thread).start()
         self.start()
@@ -55,6 +65,8 @@ class InputMux(util.Threadbase):
         self.sourcespotifyd.terminate()
         if self.source_mopidy:
             self.source_mopidy.terminate()
+        if self.alsasrc:
+            self.alsasrc.terminate()
         self.mainloop.quit()
 
     @staticmethod
@@ -103,16 +115,16 @@ class InputMux(util.Threadbase):
                     log.debug('audio %s bytes' % len(value))
                 self.timeout_counter = 40
                 self.audio_buffer += value
-                if len(self.audio_buffer) < 3000:
+                if len(self.audio_buffer) < self.audiominblocksize:
                     return
                 value = self.audio_buffer
                 self.audio_buffer = bytearray()
 
-            self.queue.put_nowait([key, value])
-
             if key == 'state' and value == 'stop':
                 log.info('inputmux received stop from source "%s"' % source)
                 self.stop_playing()
+            else:
+                self.queue.put_nowait([key, value])
 
     def run(self):
         while not self.terminated:
