@@ -89,7 +89,7 @@ class SourceTCP(util.Threadbase):
             log.critical("couldn't construct pipeline, %s" % str(e))
 
     def send_event(self, key, value):
-        self.emit('event', [self.source_name(), key, value])
+        self.emit('event', {'name': self.name, 'key': key, 'value': value})
 
     def run(self):
         try:

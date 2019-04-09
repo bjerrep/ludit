@@ -46,6 +46,7 @@ class Player(util.Threadbase):
     playing_start_time = None
     starvation_alerts = NOF_STARVATION_ALERTS
     buffer_size = 100000
+    realtime = False
     mainloop = GLib.MainLoop()
     gain = 1.0
 
@@ -62,6 +63,7 @@ class Player(util.Threadbase):
     user_volume = 0.3
     channel_list = []
     alsa_hw_device = {}
+    client_buffer = None
 
     message_inhibit_time = time.time()
 
@@ -114,6 +116,11 @@ class Player(util.Threadbase):
             self.gain = 1.0
         else:
             log.critical("unknown codec '%s'" % self.codec)
+
+        if self.client_buffer is not None:
+            log.debug('buffer size override: %i' % self.client_buffer)
+            buffer_size = self.client_buffer
+            self.client_buffer = None
 
         try:
             lo, hi = self.calculate_highlowbalance(self.highlowbalance)
@@ -214,11 +221,22 @@ class Player(util.Threadbase):
             log.debug('setting volume %.4f' % volume)
             self.set_volume(volume)
 
+        elif command == 'client_buffer':
+            self.client_buffer = int(message['value'])
+            log.debug('setting client_buffer %i' % self.client_buffer)
+
+        elif command == 'realtime':
+            self.realtime = message['value'] == 'true'
+            log.debug('setting realtime mode')
+
         elif command == 'buffering':
             self.log_first_audio = LOG_FIRST_AUDIO_COUNT
             self.m_state = State.BUFFERING
             self.buffer_state = BufferState.MONITOR_STARTING
             self.hwctl.play(True)
+            if self.realtime:
+                self.pipeline.set_state(Gst.State.PLAYING)
+                self.playing_start_time = time.time()
 
         elif command == 'playing':
             log.info('---- playing ----')
@@ -236,6 +254,10 @@ class Player(util.Threadbase):
                 here the base time is set into the future since playing starts
                 when the running time >= 0
             """
+
+            if self.realtime:
+                self.realtime = False
+                return
 
             play_time = float(message['playtime'])
             play_time_ns = play_time * 1000000000

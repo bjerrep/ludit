@@ -33,23 +33,23 @@ class InputMux(util.Threadbase):
         self.audio_buffer = bytearray()
 
         self.sourcefifo = sourcefifo.SourceFifo()
-        self.sourcefifo.connect('event', self.input_event)
+        self.sourcefifo.connect('event', self.source_event)
         self.sourcetcp = sourcetcp.SourceTCP(source_config['gstreamer_port'])
-        self.sourcetcp.connect('event', self.input_event)
+        self.sourcetcp.connect('event', self.source_event)
         self.sourcespotifyd = sourcespotifyd.SourceSpotifyd()
-        self.sourcespotifyd.connect('event', self.input_event)
+        self.sourcespotifyd.connect('event', self.source_event)
         if source_config['mopidy_ws_enabled'] == 'on':
             self.source_mopidy = sourcemopidy.SourceMopidy(source_config['mopidy_ws_address'],
                                                            source_config['mopidy_ws_port'],
                                                            source_config['mopidy_gst_port'])
-            self.source_mopidy.connect('event', self.input_event)
+            self.source_mopidy.connect('event', self.source_event)
         else:
             self.source_mopidy = None
 
         try:
             if source_config['alsasource']['enabled'] == 'true':
                 self.alsasrc = sourcealsa.SourceAlsa(source_config['alsasource'])
-                self.alsasrc.connect('event', self.input_event)
+                self.alsasrc.connect('event', self.source_event)
         except:
             self.alsasrc = None
 
@@ -81,12 +81,18 @@ class InputMux(util.Threadbase):
         except:
             util.die('caught a gst mainloop exception, exiting..', 1, True)
 
+    def event_poll(self):
+        return self.queue.get(timeout=0.1)
+
+    def new_event(self, key, value):
+        self.queue.put_nowait({'key': key, 'value': value})
+
     def stop_playing(self):
         self.now_playing = None
         self.timeout_counter = None
-        self.queue.put_nowait(['state', 'stop'])
+        self.new_event('state', 'stop')
 
-    def input_event(self, skv):
+    def source_event(self, event):
         """
         Recieves events from all sources and implements a policy on how to deal with one
         or more simultaneously active sources. Currently the winner is always the latest source
@@ -95,7 +101,13 @@ class InputMux(util.Threadbase):
         placed in a queue for others to pick up (currently picked by the server itself)
         """
         with self.source_event_lock:
-            source, key, value = skv
+            source = event['name']
+            key = event['key']
+            value = event['value']
+
+            if key == 'realtime':
+                self.new_event(key, value)
+                return
 
             if key == 'codec':
                 if self.now_playing:
@@ -124,7 +136,7 @@ class InputMux(util.Threadbase):
                 log.info('inputmux received stop from source "%s"' % source)
                 self.stop_playing()
             else:
-                self.queue.put_nowait([key, value])
+                self.new_event(key, value)
 
     def run(self):
         while not self.terminated:

@@ -35,7 +35,7 @@ class SourceMopidy(util.Threadbase):
         self.send_event(key, value)
 
     def send_event(self, key, value):
-        self.emit('event', [self.name, key, value])
+        self.emit('event', {'name': self.name, 'key': key, 'value': value})
 
     def stop_playing(self):
         self.send_event('state', 'stop')

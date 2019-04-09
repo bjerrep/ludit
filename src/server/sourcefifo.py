@@ -24,7 +24,7 @@ class SourceFifo(util.Threadbase):
         return 'fifo'
 
     def send_event(self, key, value):
-        self.emit('event', [self.source_name(), key, value])
+        self.emit('event', {'name': self.name, 'key': key, 'value': value})
 
     def run(self):
         try:

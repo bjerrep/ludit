@@ -158,9 +158,13 @@ class Server(util.Threadbase):
         try:
             while not self.terminated:
                 try:
-                    key, value = self.input_mux.queue.get(timeout=0.1)
+                    event = self.input_mux.event_poll()
                 except queue.Empty:
                     continue
+
+                key = event['key']
+                value = event['value']
+
                 if key == 'audio':
                     self.play_sequencer.new_audio(value)
                 elif key == 'codec':
@@ -169,6 +173,8 @@ class Server(util.Threadbase):
                     self.play_sequencer.set_state(value)
                 elif key == 'volume':
                     self.play_sequencer.set_volume(value)
+                elif key == 'realtime':
+                    self.play_sequencer.broadcast(key, value)
                 else:
                     log.critical('got an unknown key %s' % key)
 
@@ -264,7 +270,10 @@ def generate_config():
                 'enabled': 'false',
                 'device': 'hw:0',
                 'timeout': '5.0',
-                'threshold_dB': '-40.0'
+                'threshold_dB': '-40.0',
+                'codec': 'pcm',
+                'client_buffer': '2000',
+                'realtime': 'true'
             }
         },
         'multicast': {

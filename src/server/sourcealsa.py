@@ -16,6 +16,9 @@ class SourceAlsa(util.Threadbase):
     def __init__(self, alsa_src_config):
         super(SourceAlsa, self).__init__(name='alsa')
         self.config = alsa_src_config
+        self.codec = self.config['codec']
+        self.client_buffer = self.config['client_buffer']
+        self.realtime = self.config['realtime'] == 'true'
         log.debug('starting alsasource')
         self.is_playing = False
         self.start()
@@ -23,7 +26,10 @@ class SourceAlsa(util.Threadbase):
     def start_playing(self):
         self.is_playing = True
         log.debug('[%s] audio started, start playing' % self.name)
-        self.send_event('codec', 'aac_adts')
+        if self.realtime:
+            self.send_event('realtime', 'true')
+        self.send_event('client_buffer', self.client_buffer)
+        self.send_event('codec', self.codec)
 
     def stop_playing(self):
         self.is_playing = False
@@ -79,7 +85,7 @@ class SourceAlsa(util.Threadbase):
                          int(float(self.config['timeout']) * util.NS_IN_SEC),
                          float(self.config['threshold_dB']))
 
-            log.info('launching pipeline listening to alsa (device=%s)' % device)
+            log.info('launching pipeline listening to alsa %s' % device)
             self.pipeline = Gst.parse_launch(pipeline)
 
             appsink = self.pipeline.get_by_name('appsink')
@@ -98,7 +104,7 @@ class SourceAlsa(util.Threadbase):
             log.critical("[%s] couldn't construct pipeline, %s" % (self.name, str(e)))
 
     def send_event(self, key, value):
-        self.emit('event', [self.name, key, value])
+        self.emit('event', {'name': self.name, 'key': key, 'value': value})
 
     def run(self):
         time.sleep(2)

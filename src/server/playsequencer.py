@@ -75,10 +75,13 @@ class PlaySequencer(util.Base):
             _group.send(packet)
 
     def set_codec(self, codec):
-        self.send_to_groups({'command': 'setcodec', 'codec': codec})
+        self.send_to_groups({'command': 'setcodec', 'codec': codec}) # fixit delete
 
     def set_volume(self, volume):
-        self.send_to_groups({'command': 'setvolume', 'volume': volume})
+        self.send_to_groups({'command': 'setvolume', 'volume': volume}) # fixit delete
+
+    def broadcast(self, command, value):
+        self.send_to_groups({'command': command, 'value': value})
 
     def get_group(self, groupname):
         return self.groups[groupname]
