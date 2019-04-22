@@ -24,6 +24,7 @@ class InputMux(util.Threadbase):
     """
     def __init__(self, source_config):
         super(InputMux, self).__init__(name='inputmux  ')
+        log.info('inputmux is starting sources')
         self.queue = queue.Queue()
         self.source_event_lock = threading.Lock()
 
@@ -34,10 +35,13 @@ class InputMux(util.Threadbase):
 
         self.sourcefifo = sourcefifo.SourceFifo()
         self.sourcefifo.connect('event', self.source_event)
+
         self.sourcetcp = sourcetcp.SourceTCP(source_config['gstreamer_port'])
         self.sourcetcp.connect('event', self.source_event)
+
         self.sourcespotifyd = sourcespotifyd.SourceSpotifyd()
         self.sourcespotifyd.connect('event', self.source_event)
+
         if source_config['mopidy_ws_enabled'] == 'on':
             self.source_mopidy = sourcemopidy.SourceMopidy(source_config['mopidy_ws_address'],
                                                            source_config['mopidy_ws_port'],
@@ -47,11 +51,12 @@ class InputMux(util.Threadbase):
             self.source_mopidy = None
 
         try:
+            self.alsasrc = None
             if source_config['alsasource']['enabled'] == 'true':
                 self.alsasrc = sourcealsa.SourceAlsa(source_config['alsasource'])
                 self.alsasrc.connect('event', self.source_event)
         except:
-            self.alsasrc = None
+            pass
 
         self.audiominblocksize = int(source_config['audiominblocksize'])
 
@@ -104,10 +109,6 @@ class InputMux(util.Threadbase):
             source = event['name']
             key = event['key']
             value = event['value']
-
-            if key == 'realtime':
-                self.new_event(key, value)
-                return
 
             if key == 'codec':
                 if self.now_playing:

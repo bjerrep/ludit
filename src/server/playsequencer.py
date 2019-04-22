@@ -38,7 +38,7 @@ class PlaySequencer(util.Base):
             _group.terminate()
 
     def slot_connected(self, group):
-        log.info('group %s connected' % group.name())
+        log.debug('group %s connected' % group.name())
         self.connected_groups.append(group)
 
     def slot_disconnected(self, group):
@@ -75,10 +75,10 @@ class PlaySequencer(util.Base):
             _group.send(packet)
 
     def set_codec(self, codec):
-        self.send_to_groups({'command': 'setcodec', 'codec': codec}) # fixit delete
+        self.send_to_groups({'command': 'setcodec', 'codec': codec})
 
     def set_volume(self, volume):
-        self.send_to_groups({'command': 'setvolume', 'volume': volume}) # fixit delete
+        self.send_to_groups({'command': 'setvolume', 'volume': volume})
 
     def broadcast(self, command, value):
         self.send_to_groups({'command': command, 'value': value})

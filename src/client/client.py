@@ -10,18 +10,31 @@ import signal
 import argparse
 import threading
 import json
+from enum import Enum
+
+
+class RTState(Enum):
+    RT_IDLE = 0
+    RT_LOCAL = 1
+    RT_AAC = 2
 
 
 class Client(util.Threadbase):
     def __init__(self, configuration):
-        super(Client, self).__init__(name='client    ')
+        super(Client, self).__init__(name='client')
         self.groupname = configuration['group']
         self.devicename = configuration['device']
+
+        try:
+            realtime = configuration['realtime'] == 'true'
+        except:
+            realtime = False
+
         self.id = '%s:%s' % (self.groupname, self.devicename)
         log.info('starting client %s' % self.id)
         self.server_endpoint = None
         self.terminate_socket = False
-        self.player = player.Player()
+        self.player = player.Player(realtime)
         self.player.connect('status', self.slot_player_status)
 
         self.socket = None
@@ -54,6 +67,17 @@ class Client(util.Threadbase):
     def connected(self):
         return self.socket is not None
 
+    def setup_realtime(self):
+        self.rt_state = RTState.RT_IDLE
+        self.setup_local_monitor_pipeline()
+
+    def setup_local_monitor_pipeline(self):
+        self.rt_pipeline = 'alsasrc ! cutter'
+
+    def rt_new_state(self, state):
+        if state == RTState.RT_IDLE:
+            self.setup_local_monitor_pipeline()
+
     def multicast_rx(self, message):
         command = message['command']
         if command == 'server_socket':
@@ -73,12 +97,14 @@ class Client(util.Threadbase):
                 self.socket.send({'command': 'status',
                                   'clientname': self.devicename,
                                   'state': message})
+        elif message in ('rt_stop', 'rt_play'):
+            log.info(f'realtime status: {message}')
         else:
-            log.error('got unknown message %s' % str(message))
+            log.error(f'got unknown message {str(message)}')
 
     def slot_new_message(self, message):
         try:
-            self.player.process_message(message)
+            self.player.process_server_message(message)
         except Exception as e:
             log.critical('client slot_new_message "%s" caught "%s"' % (str(message), str(e)))
 
@@ -125,10 +151,13 @@ class Client(util.Threadbase):
                     self.server_offline_counter -= 1
                     if not self.server_offline_counter:
                         log.critical('server seems to be offline')
+                try:
+                    self.multicast.send({'command': 'get_server_socket',
+                                         'to': 'server',
+                                         'from': self.id})
+                except OSError:
+                    log.warning('got a multicast send exception. Bummer.')
 
-                self.multicast.send({'command': 'get_server_socket',
-                                     'to': 'server',
-                                     'from': self.id})
                 if delay < 5.0:
                     delay += 0.1
             else:
@@ -153,6 +182,9 @@ def generate_config():
         'multicast': {
             'ip': util.multicast_ip,
             'port': str(util.multicast_port)
+        },
+        'realtime': {
+            'enabled': 'false'
         }
     }
     return configuration
@@ -193,8 +225,8 @@ def start():
 
         if results.newcfg:
             configuration = generate_config()
-            configuration['group'] = 'edit_or_delete'
-            configuration['device'] = 'edit_or_delete'
+            configuration['group'] = 'stereo'
+            configuration['device'] = 'stereo'
             config = json.dumps(configuration, indent=4, sort_keys=True)
             print(config)
             exit(0)

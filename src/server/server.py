@@ -173,8 +173,6 @@ class Server(util.Threadbase):
                     self.play_sequencer.set_state(value)
                 elif key == 'volume':
                     self.play_sequencer.set_volume(value)
-                elif key == 'realtime':
-                    self.play_sequencer.broadcast(key, value)
                 else:
                     log.critical('got an unknown key %s' % key)
 
@@ -195,7 +193,7 @@ def generate_config():
         'channel': 'right'
     }
 
-    kitchen = {
+    kitchen_group = {
         'general': {
             'legend': 'Kitchen',
             'name': 'kitchen',
@@ -227,11 +225,11 @@ def generate_config():
         'right_alsa_device': 'hw:1'
     }
 
-    stereo = {
+    stereo_group = {
         'general': {
             'legend': 'Stereo',
             'name': 'stereo',
-            'enabled': "false",
+            'enabled': "true",
             'playing': "false",
             'devices': [stereo_device],
         },
@@ -254,7 +252,7 @@ def generate_config():
 
     configuration = {
         'version': util.CONFIG_VERSION,
-        'groups': [kitchen, stereo],
+        'groups': [kitchen_group, stereo_group],
         'audiotimeout': '5',
         'playdelay': '0.5',
         'buffersize': '200000',
@@ -270,18 +268,12 @@ def generate_config():
                 'enabled': 'false',
                 'device': 'hw:0',
                 'timeout': '5.0',
-                'threshold_dB': '-40.0',
-                'codec': 'pcm',
-                'client_buffer': '2000',
-                'realtime': 'true'
+                'threshold_dB': '-40.0'
             }
         },
         'multicast': {
             'ip': util.multicast_ip,
             'port': str(util.multicast_port)
-        },
-        'inputmux': {
-
         }
     }
     return configuration

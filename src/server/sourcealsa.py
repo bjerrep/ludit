@@ -1,24 +1,27 @@
 from common.log import logger as log
 from common import util
-import select
 import time
-import re
-import os
-import stat
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst
 
 
 class SourceAlsa(util.Threadbase):
+    """
+    Source for raw Alsa input. Since there is no out of band control channel
+    issuing e.g. start and stop events the pipeline uses a cutter element
+    as gate.
+    Notice that at least for the python binding the first thing comming from
+    a gated non leaky cutter is not the 'above' event but the first audio packet,
+    then followed by the 'above' event.
+    The state is 'experimental'
+    """
     signals = 'event'
 
     def __init__(self, alsa_src_config):
         super(SourceAlsa, self).__init__(name='alsa')
         self.config = alsa_src_config
-        self.codec = self.config['codec']
         self.client_buffer = self.config['client_buffer']
-        self.realtime = self.config['realtime'] == 'true'
         log.debug('starting alsasource')
         self.is_playing = False
         self.start()
@@ -26,10 +29,7 @@ class SourceAlsa(util.Threadbase):
     def start_playing(self):
         self.is_playing = True
         log.debug('[%s] audio started, start playing' % self.name)
-        if self.realtime:
-            self.send_event('realtime', 'true')
-        self.send_event('client_buffer', self.client_buffer)
-        self.send_event('codec', self.codec)
+        self.send_event('codec', 'aac_adts')
 
     def stop_playing(self):
         self.is_playing = False
@@ -58,6 +58,8 @@ class SourceAlsa(util.Threadbase):
                 above = message.get_structure().get_value('above')
                 if not above and self.is_playing:
                     self.stop_playing()
+                elif above and not self.is_playing:
+                    self.start_playing()
 
         except Exception as e:
             log.critical('[%s] parsing cutter message gave "%s"' % (self.name, str(e)))
@@ -79,7 +81,7 @@ class SourceAlsa(util.Threadbase):
                 device = ''
 
             pipeline = 'alsasrc %s ! '\
-                       'cutter name=cutter leaky=True run-length=%i threshold-dB=%f ! '\
+                       'cutter name=cutter leaky=false run-length=%i threshold-dB=%f ! '\
                        'faac ! aacparse ! avmux_adts ! appsink name=appsink' % \
                         (device,
                          int(float(self.config['timeout']) * util.NS_IN_SEC),
@@ -107,8 +109,8 @@ class SourceAlsa(util.Threadbase):
         self.emit('event', {'name': self.name, 'key': key, 'value': value})
 
     def run(self):
-        time.sleep(2)
         self.construct_pipeline()
+
         while not self.terminated:
             time.sleep(0.1)
 
