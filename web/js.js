@@ -46,7 +46,7 @@ function flush_pending() {
 }
 
 function call_server(groupname, index, type, value) {
-    pending_command = {"command": "set_param",
+    pending_command = {"command": "setparam",
                         "name": groupname,
                         "param": { [index]: { [type]: value.toString() }}};
 	if (!pending_key) {

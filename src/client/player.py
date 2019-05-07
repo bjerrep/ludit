@@ -1,6 +1,7 @@
 from common.log import logger as log
 from common import util
 from client.pipeline import Pipeline
+from client import hwctl
 import time
 from enum import Enum
 import threading
@@ -11,7 +12,7 @@ from gi.repository import Gst
 LOG_FIRST_AUDIO_COUNT = 5
 
 
-class State(Enum):
+class ServerAudioState(Enum):
     STOPPED = 1
     BUFFERING = 2
     PLAYING = 3
@@ -21,12 +22,6 @@ class BufferState(Enum):
     MONITOR_STARTING = 1
     MONITOR_STARVATION = 2
     MONITOR_BUFFERED = 3
-
-
-class Channel(Enum):
-    LEFT = 0
-    RIGHT = 1
-    STEREO = 2
 
 
 class Player(util.Threadbase):
@@ -39,28 +34,39 @@ class Player(util.Threadbase):
     NOF_STARVATION_ALERTS = 25
     starvation_alerts = NOF_STARVATION_ALERTS
     message_inhibit_time = time.time()
-    realtime_operation = False
+    server_audio_state = ServerAudioState.STOPPED
+    playing_start_time = None
+    playing = False
 
-    def __init__(self, realtime):
+    def __init__(self, configuration):
         super(Player, self).__init__('player')
-        self._pipeline = Pipeline(realtime)
-        self.realtime_operation = realtime
+        self.hwctl = hwctl.HwCtl()
+        self.pipeline = Pipeline()
+        self.pipeline.connect('status', self.pipeline_event)
+        self.pipeline.configure_pipeline(configuration)
         self.start()
 
     def terminate(self):
-        self._pipeline.terminate()
+        self.hwctl.terminate()
+        self.pipeline.terminate()
         super().terminate()
 
-    def process_server_message(self, message):
-        command = message['command']
+    def is_playing(self):
+        return self.server_audio_state != ServerAudioState.STOPPED
+
+    def realtime_autostart(self):
+        return self.pipeline.realtime_enabled() and self.playing
+
+    def process_runtime_message(self, runtime):
+        command = runtime['command']
 
         if command == 'buffering':
             self.log_first_audio = LOG_FIRST_AUDIO_COUNT
-            self.m_state = State.BUFFERING
+            self.server_audio_state = ServerAudioState.BUFFERING
             self.buffer_state = BufferState.MONITOR_STARTING
-            if self.realtime_operation:
-                self.realtime = False
-                self._pipeline.construct_pipeline()
+            if self.realtime_autostart():
+                self.pipeline.construct_and_start_local_pipeline()
+            self.hwctl.play(True)
 
         elif command == 'playing':
             log.info('---- playing ----')
@@ -79,12 +85,8 @@ class Player(util.Threadbase):
                 when the running time >= 0
             """
 
-            if self.realtime:
-                self.realtime = False
-                return
-
-            play_time = float(message['playtime'])
-            play_time_ns = play_time * 1000000000
+            play_time = float(runtime['playtime'])
+            play_time_ns = play_time * util.NS_IN_SEC
 
             # here the time precision is about to go out the window in the call to set_base_time. If and when we
             # are preempted then the timing can be off in the millisecond range which is by any standards super awful.
@@ -95,10 +97,10 @@ class Player(util.Threadbase):
             for i in range(151):
                 gst_setup_start = time.time()
 
-                self._pipeline.pipeline.set_base_time( #  fixit messing around
-                    self._pipeline.pipeline.get_pipeline_clock().get_time()
+                self.pipeline.pipeline.set_base_time(
+                    self.pipeline.pipeline.get_pipeline_clock().get_time()
                     + play_time_ns
-                    - time.time() * 1000000000)
+                    - time.time() * util.NS_IN_SEC)
 
                 gst_setup_elapsed_us = (time.time() - gst_setup_start) * 1000000
 
@@ -112,13 +114,13 @@ class Player(util.Threadbase):
             else:
                 log.error(setup_message)
 
-            play_delay_ns = play_time_ns - time.time() * 1000000000
+            play_delay_ns = play_time_ns - time.time() * util.NS_IN_SEC
 
-            self._pipeline.pipeline.set_start_time(Gst.CLOCK_TIME_NONE)
+            self.pipeline.pipeline.set_start_time(Gst.CLOCK_TIME_NONE)
 
-            self._pipeline.pipeline.set_state(Gst.State.PLAYING)
+            self.pipeline.pipeline.set_state(Gst.State.PLAYING)
 
-            self.m_state = State.PLAYING
+            self.server_audio_state = ServerAudioState.PLAYING
 
             play_delay_secs = play_delay_ns / util.NS_IN_SEC
             self.playing_start_time = time.time() + play_delay_secs
@@ -129,28 +131,49 @@ class Player(util.Threadbase):
 
         elif command == 'stopping':
             log.info('---- stopping ----')
-            if self.realtime_operation:
-                self.realtime = True
-                self._pipeline.construct_pipeline()
+            self.hwctl.play(False)
+            if self.realtime_autostart():
+                self.pipeline.construct_and_start_local_pipeline()
             else:
-                self._pipeline.stop_pipeline()
+                self.pipeline.stop_pipeline()
 
-            self.m_state = State.STOPPED
+            self.server_audio_state = ServerAudioState.STOPPED
             self.playing_start_time = None
             self.buffer_state = BufferState.MONITOR_STARTING
             self.last_status_time = None
 
+
+    def process_server_message(self, message):
+        """
+        A message example (originating from webpage):
+        {'command': 'setparam', 'name': 'stereo', 'param': {'general': {'playing': 'true'}}, 'ip': '192.168.1.126'}
+        """
+        runtime = message.get('runtime')
+        if runtime:
+            self.process_runtime_message(runtime)
         else:
-            self._pipeline.process_message(message)
+            before = self.realtime_autostart()
+
+            try:
+                self.playing = message['param']['general']['playing'] == 'true'
+                log.info('play enabled: %s' % self.playing)
+                if not self.playing:
+                    self.pipeline.stop_pipeline()
+            except:
+                pass
+
+            self.pipeline.process_message(message)
+            if not before and self.realtime_autostart():
+                self.pipeline.construct_and_start_local_pipeline()
 
     def print_stats(self):
         try:
-            position, duration = self._pipeline.pipeline.query_position(Gst.Format.TIME)  # fixit messing around
-            buffer_size = int(self._pipeline.last_queue.get_property('current-level-bytes'))
+            position, duration = self.pipeline.pipeline.query_position(Gst.Format.TIME)
+            buffer_size, buffered = self.pipeline.get_buffer_values()
             duration_secs = int(duration) / util.NS_IN_SEC
             playtime_skew = (time.time() - self.playing_start_time) - duration_secs
             log.info("playing time %.3f sec, buffered %i bytes. Skew %.6f" %
-                     (duration_secs, buffer_size, playtime_skew))
+                     (duration_secs, buffered, playtime_skew))
         except NameError:
             return True
         except Exception as e:
@@ -168,7 +191,7 @@ class Player(util.Threadbase):
     def pipeline_monitor(self):
         self.monitor_lock.acquire()
 
-        buffer_size, currently_buffered = self._pipeline.get_buffer_values()
+        buffer_size, currently_buffered = self.pipeline.get_buffer_values()
 
         if self.buffer_state == BufferState.MONITOR_STARTING:
             if currently_buffered > buffer_size:
@@ -200,8 +223,15 @@ class Player(util.Threadbase):
 
         self.monitor_lock.release()
 
+    def pipeline_event(self, message):
+        log.info(f'pipeline event: {message}')
+        if message == 'rt_play':
+            self.hwctl.play(True)
+        elif message == 'rt_stop':
+            self.hwctl.play(False)
+
     def new_audio(self, audio):
-        self._pipeline.new_audio(audio)
+        self.pipeline.new_audio(audio)
         if audio:
             self.pipeline_monitor()
 
@@ -212,13 +242,14 @@ class Player(util.Threadbase):
             while not self.terminated:
                 time.sleep(0.1)
 
-                self.pipeline_monitor()
+                if self.server_audio_state != ServerAudioState.STOPPED:
+                    self.pipeline_monitor()
 
-                if (self._pipeline.is_playing() and
-                    self.last_status_time and
-                    (time.time() - self.last_status_time > 2)):
-                    self.last_status_time = time.time()
-                    self.print_stats()
+                    if (self.is_playing() and
+                        self.last_status_time and
+                        (time.time() - self.last_status_time > 2)):
+                        self.last_status_time = time.time()
+                        self.print_stats()
 
         except Exception as e:
             log.critical('player thread exception %s' % str(e))

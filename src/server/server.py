@@ -19,7 +19,7 @@ import threading
 class Server(util.Threadbase):
 
     def __init__(self, configuration_file):
-        super(Server, self).__init__(name='server    ')
+        super(Server, self).__init__(name='server')
 
         log.info('starting server at %s' % util.local_ip())
 
@@ -76,6 +76,7 @@ class Server(util.Threadbase):
             with open(self.configuration_file, 'w') as f:
                 config = self.play_sequencer.current_configuration()
                 config.update({'sources': self.configuration['sources']})
+                config.update({'multicast': self.configuration['multicast']})
                 f.write(json.dumps(config, indent=4, default=lambda x: str(x)))
             log.info('saved configuration in %s' % self.configuration_file)
         except Exception as e:
@@ -130,6 +131,7 @@ class Server(util.Threadbase):
     def broadcast_new_configuration(self):
         log.debug('ws: sending current configuration')
         current_config = self.play_sequencer.current_configuration()
+        _ = json.dumps(current_config, indent=4, sort_keys=True)
         self.ws.send_message(None,
                              {'command': 'configuration',
                               'current_conf': current_config})
@@ -207,8 +209,8 @@ def generate_config():
             'equalizer': {'0': '12.0', '1': '10.0', '2': '3.0'}
         },
         'xover': {
-            'highlowbalance': '-0.45',
-            'freq': '1300',
+            'highlowbalance': '-0.1',
+            'freq': '1500',
             'poles': '4',
         },
         'stereoenhance': {
@@ -220,9 +222,7 @@ def generate_config():
 
     stereo_device = {
         'name': 'stereo',
-        'channel': 'stereo',
-        'left_alsa_device': 'hw:0',
-        'right_alsa_device': 'hw:1'
+        'channel': 'stereo'
     }
 
     stereo_group = {
@@ -239,14 +239,19 @@ def generate_config():
             'equalizer': {'0': '12.0', '1': '10.0', '2': '0.0'}
         },
         'xover': {
-            'highlowbalance': '0.0',
-            'freq': '1200',
+            'highlowbalance': '-0.1',
+            'freq': '1500',
             'poles': '4',
         },
         'stereoenhance': {
             'visible': 'false',
             'depth': '0.0',
             'enabled': "false",
+        },
+        'realtime': {
+            'enabled': 'false',
+            'level_db': '-40.0',
+            'duration_sec': '15'
         }
     }
 

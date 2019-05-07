@@ -15,14 +15,13 @@ class HardwareState(Enum):
 
 class HwCtl(util.Threadbase):
     def __init__(self):
-        super(HwCtl, self).__init__(name='hwctl     ')
+        super(HwCtl, self).__init__(name='hwctl')
         self.target = HardwareState.BOOT
         gpio.reset()
         self.start()
 
     def terminate(self):
         super().terminate()
-        self.target = HardwareState.POWEROFF
 
     def play(self, on):
         if on:
@@ -59,6 +58,12 @@ class HwCtl(util.Threadbase):
                         gpio.Power(False)
                         gpio.LED(gpio.LedColor.RED)
                         state = HardwareState.POWEROFF
+
+        if state != HardwareState.POWEROFF:
+            gpio.speaker_relay(False)
+            time.sleep(0.2)
+            gpio.Power(False)
+            gpio.LED(gpio.LedColor.RED)
 
         gpio.close()
         log.debug('hwctrl exits')

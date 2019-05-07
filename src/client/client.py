@@ -10,31 +10,24 @@ import signal
 import argparse
 import threading
 import json
-from enum import Enum
-
-
-class RTState(Enum):
-    RT_IDLE = 0
-    RT_LOCAL = 1
-    RT_AAC = 2
+import gi
+gi.require_version('Gst', '1.0')
+from gi.repository import GLib
 
 
 class Client(util.Threadbase):
     def __init__(self, configuration):
         super(Client, self).__init__(name='client')
+
         self.groupname = configuration['group']
         self.devicename = configuration['device']
-
-        try:
-            realtime = configuration['realtime'] == 'true'
-        except:
-            realtime = False
-
         self.id = '%s:%s' % (self.groupname, self.devicename)
         log.info('starting client %s' % self.id)
+
+        self.mainloop = GLib.MainLoop()
         self.server_endpoint = None
         self.terminate_socket = False
-        self.player = player.Player(realtime)
+        self.player = player.Player(configuration)
         self.player.connect('status', self.slot_player_status)
 
         self.socket = None
@@ -55,6 +48,7 @@ class Client(util.Threadbase):
         self.start()
 
     def terminate(self):
+        self.mainloop.quit()
         self.multicast.terminate()
         if self.socket:
             self.socket.terminate()
@@ -66,17 +60,6 @@ class Client(util.Threadbase):
 
     def connected(self):
         return self.socket is not None
-
-    def setup_realtime(self):
-        self.rt_state = RTState.RT_IDLE
-        self.setup_local_monitor_pipeline()
-
-    def setup_local_monitor_pipeline(self):
-        self.rt_pipeline = 'alsasrc ! cutter'
-
-    def rt_new_state(self, state):
-        if state == RTState.RT_IDLE:
-            self.setup_local_monitor_pipeline()
 
     def multicast_rx(self, message):
         command = message['command']
@@ -141,7 +124,7 @@ class Client(util.Threadbase):
                     self.socket.join()
                     self.socket = None
                 self.server_endpoint = None
-                self.player.process_message({'command': 'stopping'})
+                self.player.process_server_message({'command': 'stopping'})
                 log.info('waiting for server connection')
                 self.server_offline_counter = 10
                 self.socket_lock.release()
@@ -172,21 +155,33 @@ class Client(util.Threadbase):
         return False
 
     def run(self):
-        self.player.mainloop.run()
+        self.mainloop.run()
         log.debug('client exits')
 
 
-def generate_config():
+def generate_config(template):
     configuration = {
         'version': util.CONFIG_VERSION,
         'multicast': {
             'ip': util.multicast_ip,
             'port': str(util.multicast_port)
-        },
-        'realtime': {
-            'enabled': 'false'
         }
     }
+
+    if template:
+        # Omit the 'alsa' block below for single channel clients which will usually be happy with the
+        # 'default' alsa playback device. If used for single channel clients then the left channel will
+        # use the first entry, the right channel the second. That will definitely be confusing.
+        # Stereo clients will have to deal with two different playback devices.
+        extra = {
+            'alsa': {
+                'devices': ['hw:0', 'hw:1']
+            },
+            'group': 'stereo',
+            'device': 'stereo'
+        }
+        configuration.update(extra)
+
     return configuration
 
 
@@ -215,7 +210,7 @@ def start():
         parser.add_argument('--newcfg', action='store_true', dest='newcfg',
                             help='dump template configuration file to stdout')
         parser.add_argument('--cfg', dest='cfg',
-                            help='configuration file to use (optional)')
+                            help='configuration file to use (only required for stereo clients)')
         parser.add_argument('--verbose', action='store_true',
                             help='enable more logging')
         parser.add_argument('--nocheck', action='store_true',
@@ -224,9 +219,7 @@ def start():
         results = parser.parse_args()
 
         if results.newcfg:
-            configuration = generate_config()
-            configuration['group'] = 'stereo'
-            configuration['device'] = 'stereo'
+            configuration = generate_config(template=True)
             config = json.dumps(configuration, indent=4, sort_keys=True)
             print(config)
             exit(0)
@@ -240,7 +233,7 @@ def start():
         try:
             configuration = load_configuration(results.cfg)
         except:
-            configuration = generate_config()
+            configuration = generate_config(template=False)
 
         try:
             groupname, devicename = results.id.split(':')
@@ -248,7 +241,7 @@ def start():
             configuration['device'] = devicename
         except:
             if not configuration.get('group'):
-                raise Exception('need a group:device name pair from arguments or configuration file')
+                raise Exception('need a group:device name from --id argument or configuration file')
 
         def ctrl_c_handler(_, __):
             try:

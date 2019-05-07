@@ -23,7 +23,7 @@ class InputMux(util.Threadbase):
     and makes sure that the events passed on are sane.
     """
     def __init__(self, source_config):
-        super(InputMux, self).__init__(name='inputmux  ')
+        super(InputMux, self).__init__(name='inputmux')
         log.info('inputmux is starting sources')
         self.queue = queue.Queue()
         self.source_event_lock = threading.Lock()

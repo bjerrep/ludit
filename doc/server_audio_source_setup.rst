@@ -9,7 +9,8 @@ The currently supported audio sources are
 - spotifyd - Spotify over LAN/Wifi
 - bluealsa - A2DP bluetooth sink
 - gstreamer - Used for testing
-
+- alsa - Alsa input on the server
+- realtime - Local client in soundbar mode
 
 Audio source: spotifyd
 ***********************
@@ -61,7 +62,7 @@ Audio source: Mopidy
 It would be kind of rude not to add Mopidy as an audio source since Mopidy uses gstreamer and exposes its playing pipeline directly in its configurationfile. Mopidy plays just about everything but for Ludit integration it has only been tested with a standard MPD client. So the state of the Mopidy audio source in this project will realisticly be something like 'under development'.
 
 The Mopidy playing pipeline in ~/.config/mopidy/mopidy.conf should be changed to::
-    
+
     output = audioconvert ! audio/x-raw, channels=2 ! faac ! aacparse ! avmux_adts ! tcpclientsink host=<server> port=4666 sync=true
 
 Mopidy sends general play state events on a websocket that Ludit needs to subscribe to. There are 4 configuration values in the Ludit configurationfile that needs to get adjusted::
@@ -86,4 +87,25 @@ Audio source : gstreamer
 
 An example of a gstreamer audio source can be found in :ref:`quick_start`.
 
+Audio source : alsa
+*******************
 
+Listens to an alsa input device on the server and uses a noise gate to automatically start and stop playing whenever there is a signal. This source is experimental.
+
+Tip: To quickly check that there is indeed audio present on a given device (when nothing works), then arecord can act as a commandline vu meter:
+
+arecord -f cd -d 0 -D hw:0 -vv /dev/null
+
+
+Audio source : realtime
+***********************
+
+This is a rather convoluted audio source. The aim is to allow a client to run with minimal latency from a local input source and play it back locally as well. As such it is running against the spirit of Ludit as it for a start isn't really a Ludit audio source as it doesn't run on the server. It only plays locally on a single client and it is not broadcast over the network to other clients. The only usecase would be a stereo or a soundbar that should be able to both operate as a normal Ludit client with audio streamed from the server, but also play audio from a local video source in realtime. And even then it only makes sense if the audio processing in Ludit is truly needed due to e.g. preserve the workings of the crossover filter and/or any equalization filters. For playing a local realtime stereo signal the client should be configured as a stereo device which requires it to have two stereo alsa devices for 4 channel playback matching two two-way crossovers.
+
+If a client is running in realtime mode its idle state is to listen for local audio and start playing if there is any. If the server starts streaming this will always have priority over the local audio and the local audio will only be able to resume when the server stops streaming. This is the simplest possible setup since it does not require the server to even know that there is a realtime client present.
+
+If a client should run in realtime mode it has to be started with a local configuration file. The server can't help with setting up a realtime client.
+
+As for what the latency actually is then its okay for watching video. Purists requiring near zero latency (or better..) will most likely have left reading about Ludit by now anyway.
+
+The automatic starting and stopping of local audio is done the same way as for the normal alsa audio source described above.

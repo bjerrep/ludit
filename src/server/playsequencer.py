@@ -100,7 +100,7 @@ class PlaySequencer(util.Base):
             now = time.time()
             for _group in self.playing_groups():
                 if new_state == group.State.BUFFERING:
-                    _group.send({'command': 'buffering'})
+                    _group.send({'runtime': {'command': 'buffering'}})
                 elif new_state == group.State.STOPPED:
                     _group.stop_playing()
                 elif new_state == group.State.PLAYING:

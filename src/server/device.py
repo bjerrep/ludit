@@ -43,7 +43,7 @@ class Device(util.Base):
     def slot_connected(self):
         log.info('[%s] sending configuration' % self.id)
         _configuration = {'param': self.jsn}
-        _configuration['command'] = 'initialize'
+        _configuration['command'] = 'configure'
         self.socket.send(_configuration)
         self.connected = True
         self.emit('deviceconnected', self)

@@ -54,11 +54,11 @@ class Group(util.Base):
 
     def start_playing(self, now):
         play_time = now + self.play_delay
-        self.send({'command': 'playing', 'playtime': str(play_time)})
+        self.send({'runtime': {'command': 'playing', 'playtime': str(play_time)}})
 
     def stop_playing(self):
         log.debug('%s send stop playing' % self.groupname)
-        self.send({'command': 'stopping'})
+        self.send({'runtime': {'command': 'stopping'}})
 
     def terminate(self):
         for _device in self.devices:
@@ -104,12 +104,6 @@ class Group(util.Base):
 
     def set_param(self, message):
         try:
-            value = message['param']['general']['playing']
-            self.jsn['general']['playing'] = value
-            if value == 'false':
-                self.stop_playing()
-            log.info('[%s] setting %s:%s to %s' % (self.groupname, 'general', 'playing', value))
-        except:
             param = message['param']
             key = list(param.keys())[0]
             tpe = list(param[key].keys())[0]
@@ -123,7 +117,14 @@ class Group(util.Base):
 
             log.info('[%s] setting %s:%s to %s' % (self.groupname, key, tpe, value))
 
+            if key == 'general' and tpe == 'playing':
+                if value == 'false':
+                    self.stop_playing()
+
             self.send(message)
+
+        except Exception as e:
+            log.exception('unable to parse parameter')
 
     def set_param_array(self, name, key, value):
         self.jsn[name][key] = float(value)
