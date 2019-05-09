@@ -9,8 +9,6 @@ import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst
 
-LOG_FIRST_AUDIO_COUNT = 5
-
 
 class ServerAudioState(Enum):
     STOPPED = 1
@@ -27,7 +25,6 @@ class BufferState(Enum):
 class Player(util.Threadbase):
     signals = 'status'
 
-    log_first_audio = LOG_FIRST_AUDIO_COUNT
     buffer_state = BufferState.MONITOR_STARTING
     last_status_time = None
     monitor_lock = threading.Lock()  # experimental
@@ -61,7 +58,7 @@ class Player(util.Threadbase):
         command = runtime['command']
 
         if command == 'buffering':
-            self.log_first_audio = LOG_FIRST_AUDIO_COUNT
+            self.pipeline.log_first_audio = pipeline.LOG_FIRST_AUDIO_COUNT
             self.server_audio_state = ServerAudioState.BUFFERING
             self.buffer_state = BufferState.MONITOR_STARTING
             if self.realtime_autostart():

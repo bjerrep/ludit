@@ -14,6 +14,8 @@ class Channel(Enum):
     RIGHT = 1
     STEREO = 2
 
+LOG_FIRST_AUDIO_COUNT = 5
+
 
 class Pipeline(util.Base):
     signals = 'status'
@@ -22,6 +24,7 @@ class Pipeline(util.Base):
     appsrc_element = None
     last_queue = None
     default_buffer_size = 100000
+    log_first_audio = LOG_FIRST_AUDIO_COUNT
 
     source_gain = 1.0
     codec = 'pcm'
@@ -191,6 +194,7 @@ class Pipeline(util.Base):
     def stop_pipeline(self):
         if self.pipeline:
             self.pipeline.set_state(Gst.State.NULL)
+            # Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, 'ludit_client')
             self.pipeline = None
 
     def has_pipeline(self):
