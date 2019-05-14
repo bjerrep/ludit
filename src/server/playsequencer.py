@@ -21,9 +21,11 @@ class PlaySequencer(util.Base):
         for group_jsn in jsn['groups']:
             group_name = group_jsn['general']['name']
             log.debug('playsequencer, adding group "%s"' % group_name)
-            self.audio_timeout = float(jsn['audiotimeout'])
 
-            group_jsn['streaming'] = jsn['streaming']
+            streaming = jsn['streaming']
+            self.audio_timeout = float(streaming['audiotimeout'])
+            group_jsn['streaming'] = streaming
+
             _group = group.Group(group_jsn)
             _group.connect('groupconnected', self.slot_connected)
             _group.connect('groupdisconnected', self.slot_disconnected)
