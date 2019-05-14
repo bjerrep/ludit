@@ -20,9 +20,10 @@ LOG_FIRST_AUDIO_COUNT = 5
 class InputMux(util.Threadbase):
     """
     Hosts the sources (currently sourcefifo, sourcetcp and sourcespotifyd), listens to their events
-    and makes sure that the events passed on are sane.
+    and makes sure that the events passed on are sane. Implements the policy on what to do when
+    multiple sources are playing at once.
     """
-    def __init__(self, source_config):
+    def __init__(self, source_config, streaming_config):
         super(InputMux, self).__init__(name='inputmux')
         log.info('inputmux is starting sources')
         self.queue = queue.Queue()
@@ -31,6 +32,7 @@ class InputMux(util.Threadbase):
         self.log_first_audio = LOG_FIRST_AUDIO_COUNT
         self.now_playing = None
         self.timeout_counter = None
+        self.timeout_preset_ticks = int(streaming_config['audiotimeout']) * 10
         self.audio_buffer = bytearray()
 
         self.sourcefifo = sourcefifo.SourceFifo()
@@ -126,7 +128,7 @@ class InputMux(util.Threadbase):
                 if self.log_first_audio:
                     self.log_first_audio -= 1
                     log.debug('audio %s bytes' % len(value))
-                self.timeout_counter = 40
+                self.timeout_counter = self.timeout_preset_ticks
                 self.audio_buffer += value
                 if len(self.audio_buffer) < self.audiominblocksize:
                     return

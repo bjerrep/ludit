@@ -6,6 +6,10 @@ import time
 
 
 class PlaySequencer(util.Base):
+    """ The playsequencer host the groups as defined in the configuration and makes it
+        possible to e.g. send messages to all groups (and devices) in one go.
+        It also maintain a list of currently online groups.
+    """
     signals = ('allgroupsdisconnected')
     m_state = group.State.STOPPED
     m_buffer_count = 0
@@ -15,12 +19,11 @@ class PlaySequencer(util.Base):
     def __init__(self, jsn):
         self.jsn = jsn
         for group_jsn in jsn['groups']:
-            group_jsn['playdelay'] = jsn['playdelay']
-            group_jsn['buffersize'] = jsn['buffersize']
-
             group_name = group_jsn['general']['name']
             log.debug('playsequencer, adding group "%s"' % group_name)
             self.audio_timeout = float(jsn['audiotimeout'])
+
+            group_jsn['streaming'] = jsn['streaming']
             _group = group.Group(group_jsn)
             _group.connect('groupconnected', self.slot_connected)
             _group.connect('groupdisconnected', self.slot_disconnected)
@@ -64,9 +67,7 @@ class PlaySequencer(util.Base):
             groups.append(_group.get_configuration())
 
         config['groups'] = groups
-        config['playdelay'] = self.jsn['playdelay']
-        config['buffersize'] = self.jsn['buffersize']
-        config['audiotimeout'] = self.jsn['audiotimeout']
+        config['streaming'] = self.jsn['streaming']
         config['version'] = self.jsn['version']
         return config
 

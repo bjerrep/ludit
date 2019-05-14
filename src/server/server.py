@@ -35,7 +35,8 @@ class Server(util.Threadbase):
         self.launch_playsequencer()
 
         source_config = self.configuration['sources']
-        self.input_mux = inputmux.InputMux(source_config)
+        streaming_config = self.configuration['streaming']
+        self.input_mux = inputmux.InputMux(source_config, streaming_config)
 
         self.multicast = multicast.Server(
             self.configuration['multicast']['ip'],
@@ -258,9 +259,11 @@ def generate_config():
     configuration = {
         'version': util.CONFIG_VERSION,
         'groups': [kitchen_group, stereo_group],
-        'audiotimeout': '5',
-        'playdelay': '0.5',
-        'buffersize': '200000',
+        'streaming': {
+            'audiotimeout': '5',
+            'playdelay': '0.5',
+            'buffersize': '200000'
+        },
         'sources': {
             'mopidy_ws_enabled': 'false',
             'mopidy_ws_address': util.local_ip(),

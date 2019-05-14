@@ -194,6 +194,7 @@ class Pipeline(util.Base):
     def stop_pipeline(self):
         if self.pipeline:
             self.pipeline.set_state(Gst.State.NULL)
+            # log.warning('writing pipeline dot file')
             # Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, 'ludit_client')
             self.pipeline = None
 

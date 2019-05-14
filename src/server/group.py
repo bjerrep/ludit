@@ -18,7 +18,6 @@ class Group(util.Base):
         self.devices = []
         self.connected_devices = []
         self.jsn = jsn
-        self.play_delay = float(jsn['playdelay'])
         self.groupname = jsn['general']['name']
         log.info('[%s] group is configuring' % self.groupname)
         self.lock = threading.Lock()
@@ -53,7 +52,8 @@ class Group(util.Base):
         return self.devices
 
     def start_playing(self, now):
-        play_time = now + self.play_delay
+        play_delay = float(self.jsn['streaming']['playdelay'])
+        play_time = now + play_delay
         self.send({'runtime': {'command': 'playing', 'playtime': str(play_time)}})
 
     def stop_playing(self):

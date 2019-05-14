@@ -4,9 +4,9 @@
 Quick start
 ###########
 
-This is the fastest way to get Ludit playing on a x86 developer PC. Most notably it skips the fancy audio sources and simply plays noise generated locally with gstreamer. Since everything will run on a single PC only one client is started as a second client might be unable to open Alsa. Regarding audio this means that only a single channel is playing (if two clients are running on the same default Alsa device this would have given a mono playback).
+Probably the fastest and or simplest way to get Ludit playing is on a x86 PC. Most notably it skips the fancy audio sources and simply plays noise generated locally with gstreamer. Since everything will run on a single PC only one client is started as a second client might be unable to open Alsa. Regarding audio this means that only a single channel is playing (if two clients are running on the same default Alsa device this would have given a mono playback). Once the server and a client are running it will be possible to play with the audio settings such as crossover and equalizer via a webpage.
 
-Note that since everything is running on one PC there is no time drift to worry about.
+Note that since everything is running on a single computer there is no time drift to worry about (not that it would ever be an issue for a quick test run)
 
 3 terminals will be needed so Terminator will come in handy in case you don't know it already. It will look like the following image, from top to bottom with the server, a client and a gstreamer pipeline.
 
@@ -22,7 +22,7 @@ Enter ./src. The first thing to do is to make a configuration file.
 
 ``./run_server.py --newcfg > ludit.cfg``
 
-Have a look at the file, probably there is a group called 'kitchen' with two speakers caller 'left' and 'right'. These names will be used for launching the clients. Now start the server:
+Have a look at the file, probably there is a group called 'kitchen' with two speakers caller 'left' and 'right'. These names will be needed for launching the clients. Now start the server:
 
 ``./run_server.py --cfg ludit.cfg``
 
@@ -44,7 +44,7 @@ In the third and last terminal launch the following gstreamer pipeline. Note tha
 
     gst-launch-1.0 audiotestsrc wave=pink-noise volume=0.01 is-live=true ! audioconvert ! audio/x-raw, channels=2 ! faac ! aacparse ! avmux_adts ! tcpclientsink host=<hostname or ip> port=4666
 
-On the PC audio output the woofer signal will be in one channel and the tweeter signal in the other. It will sound horrible. The audiotestsrc source can be replaced with something playing a local file or streaming web radio if you so wish.
+On the PC audio output the woofer signal will be in one channel and the tweeter signal in the other. It will sound horrible. The audiotestsrc source can be replaced with a gstreamer source playing a local file or streaming web radio if the noise gets too much.
 
 Web
 ****
