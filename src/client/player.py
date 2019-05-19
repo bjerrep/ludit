@@ -1,6 +1,6 @@
 from common.log import logger as log
 from common import util
-from client.pipeline import Pipeline
+from client.pipeline import Pipeline, LOG_FIRST_AUDIO_COUNT
 from client import hwctl
 import time
 from enum import Enum
@@ -58,7 +58,7 @@ class Player(util.Threadbase):
         command = runtime['command']
 
         if command == 'buffering':
-            self.pipeline.log_first_audio = pipeline.LOG_FIRST_AUDIO_COUNT
+            self.pipeline.log_first_audio = LOG_FIRST_AUDIO_COUNT
             self.server_audio_state = ServerAudioState.BUFFERING
             self.buffer_state = BufferState.MONITOR_STARTING
             if self.realtime_autostart():
