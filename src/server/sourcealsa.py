@@ -80,12 +80,12 @@ class SourceAlsa(util.Threadbase):
             else:
                 device = ''
 
-            pipeline = 'alsasrc %s ! '\
-                       'cutter name=cutter leaky=false run-length=%i threshold-dB=%f ! '\
+            pipeline = 'alsasrc %s ! ' \
+                       'cutter name=cutter leaky=false run-length=%i threshold-dB=%f ! ' \
                        'faac ! aacparse ! avmux_adts ! appsink name=appsink' % \
-                        (device,
-                         int(float(self.config['timeout']) * util.NS_IN_SEC),
-                         float(self.config['threshold_dB']))
+                       (device,
+                        int(float(self.config['timeout']) * util.NS_IN_SEC),
+                        float(self.config['threshold_dB']))
 
             log.info('launching pipeline listening to alsa %s' % device)
             self.pipeline = Gst.parse_launch(pipeline)

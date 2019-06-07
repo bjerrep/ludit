@@ -8,6 +8,7 @@ from connectable import Connectable
 
 NS_IN_SEC = 1000000000
 
+LUDIT_VERSION = "0.1"
 CONFIG_VERSION = "0.3"
 
 multicast_ip = '225.168.1.102'

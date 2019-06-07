@@ -102,7 +102,7 @@ class Player(util.Threadbase):
                 gst_setup_elapsed_us = (time.time() - gst_setup_start) * 1000000
 
                 if (gst_setup_elapsed_us > target_time_us - i * target_window_us and
-                    gst_setup_elapsed_us < target_time_us + i * target_window_us):
+                        gst_setup_elapsed_us < target_time_us + i * target_window_us):
                     break
 
             setup_message = 'time setup took %.3f us in %i tries' % (gst_setup_elapsed_us, i)
@@ -138,7 +138,6 @@ class Player(util.Threadbase):
             self.playing_start_time = None
             self.buffer_state = BufferState.MONITOR_STARTING
             self.last_status_time = None
-
 
     def process_server_message(self, message):
         """
@@ -242,9 +241,8 @@ class Player(util.Threadbase):
                 if self.server_audio_state != ServerAudioState.STOPPED:
                     self.pipeline_monitor()
 
-                    if (self.is_playing() and
-                        self.last_status_time and
-                        (time.time() - self.last_status_time > 2)):
+                    if (self.is_playing() and self.last_status_time and
+                            (time.time() - self.last_status_time > 2)):
                         self.last_status_time = time.time()
                         self.print_stats()
 

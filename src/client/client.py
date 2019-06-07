@@ -137,7 +137,8 @@ class Client(util.Threadbase):
                 try:
                     self.multicast.send({'command': 'get_server_socket',
                                          'to': 'server',
-                                         'from': self.id})
+                                         'from': self.id,
+                                         'version': util.LUDIT_VERSION})
                 except OSError:
                     log.warning('got a multicast send exception. Bummer.')
 

@@ -14,6 +14,7 @@ class Channel(Enum):
     RIGHT = 1
     STEREO = 2
 
+
 LOG_FIRST_AUDIO_COUNT = 5
 
 
@@ -143,14 +144,14 @@ class Pipeline(util.Base):
 
                 pipeline += (
                     'd.src_%s ! tee name=t%s '
-                    
+
                     'interleave name=i%s ! capssetter caps = audio/x-raw,channels=2,channel-mask=0x3 ! '
                     'audioconvert ! audioresample ! queue name=lastqueue%s max-size-time=20000000000 ! '
                     'volume name=vol%s volume=%f ! alsasink sync=true %s buffer-time=%d '
-                    
+
                     't%s.src_0 ! queue ! audiocheblimit poles=%i name=lowpass%s mode=low-pass cutoff=%f ! '
                     '%s ! volume name=lowvol%s volume=%f ! i%s.sink_0 '
-                    
+
                     't%s.src_1 ! queue ! audiocheblimit poles=%i name=highpass%s mode=high-pass cutoff=%f ! '
                     'volume name=highvol%s volume=%f ! i%s.sink_1 ' %
                     (channel, channel,
@@ -193,9 +194,9 @@ class Pipeline(util.Base):
 
     def stop_pipeline(self):
         if self.pipeline:
-            self.pipeline.set_state(Gst.State.NULL)
             # log.warning('writing pipeline dot file')
             # Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, 'ludit_client')
+            self.pipeline.set_state(Gst.State.NULL)
             self.pipeline = None
 
     def has_pipeline(self):

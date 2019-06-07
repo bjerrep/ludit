@@ -1,4 +1,4 @@
-#!/bin/python
+#!/usr/bin/env python3
 
 from common import util
 from common.log import logger as log
@@ -92,6 +92,9 @@ class Server(util.Threadbase):
         try:
             command = message['command']
             if command == 'get_server_socket':
+                if message['version'] != util.LUDIT_VERSION:
+                    raise Exception('server version is %s but client version is %s' %
+                                    (util.LUDIT_VERSION, message['version']))
                 device = message['from']
                 groupname, devicename = device.split(':')
                 endpoint = self.play_sequencer.get_group(groupname).get_device(devicename).get_endpoint()

@@ -124,7 +124,7 @@ class Group(util.Base):
             self.send(message)
 
         except Exception as e:
-            log.exception('unable to parse parameter')
+            log.exception('unable to parse parameter %s' % str(e))
 
     def set_param_array(self, name, key, value):
         self.jsn[name][key] = float(value)
