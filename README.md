@@ -54,6 +54,8 @@ Runs on both server and client to get their time in true sync.
 Ludit is playing and have done so for a while. This does not mean that it isn't buggy, only that it works in a stationary setup with exactly two clients always available. A test with a single client, where two where expected from the configuration, only showed that this remains to be implemented properly. So there is one way to make Ludit work, and most likely infinitely many ways to make it fail.
 Also something like volume control are left in a state where it is possible to turn it up and down but where the absolute resulting volume is useless until some magic values are inserted here and there in the source files. Consider yourself warned.
 
+For more words there is a half-started documentation attempt [here](https://ludit.readthedocs.io/en/latest/). Its rather incoherent but it features e.g. a 'quick start' page in case the software for some reason should be tried out.
+
 ### Requirements
 
 Some of the requirements for the whole enterprise are python 3, the python libs [connectable](https://github.com/timothycrosley/connectable) & [simple-websocket-server](https://github.com/dpallot/simple-websocket-server) and last but not least, gstreamer. 

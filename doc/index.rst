@@ -12,6 +12,7 @@ Ludit
    software_installations
    client_types
    server_audio_source_setup
+   audio_processing
    rpi_setup
 
 Introduction
