@@ -1,6 +1,7 @@
 from common.log import logger as log
 from common import util
 from enum import Enum
+import time
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import GObject, Gst
@@ -24,7 +25,7 @@ class Pipeline(util.Base):
     pipeline = None
     appsrc_element = None
     last_queue = None
-    default_buffer_size = 100000
+    default_buffer_size = 100000 # can be redefined from configuration file
     log_first_audio = LOG_FIRST_AUDIO_COUNT
 
     source_gain = 1.0
@@ -51,6 +52,9 @@ class Pipeline(util.Base):
     def terminate(self):
         self.stop_pipeline()
 
+    def has_pipeline(self):
+        return self.pipeline is not None
+
     def get_buffer_values(self):
         try:
             return self.current_buffer_size, int(self.last_queue.get_property('current-level-bytes'))
@@ -59,6 +63,16 @@ class Pipeline(util.Base):
 
     def realtime_enabled(self):
         return self.noise_gate_level_db is not None
+
+    def set_play_time(self, play_time_ns):
+        self.pipeline.set_base_time(
+            self.pipeline.get_pipeline_clock().get_time()
+            + play_time_ns
+            - time.time() * util.NS_IN_SEC)
+
+    def delayed_start(self):
+        self.pipeline.set_start_time(Gst.CLOCK_TIME_NONE)
+        self.pipeline.set_state(Gst.State.PLAYING)
 
     def bus_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
@@ -199,9 +213,6 @@ class Pipeline(util.Base):
             self.pipeline.set_state(Gst.State.NULL)
             self.pipeline = None
 
-    def has_pipeline(self):
-        return self.pipeline is not None
-
     def set_volume(self, volume):
         if volume is not None:
             self.user_volume = volume
@@ -254,12 +265,12 @@ class Pipeline(util.Base):
             if param == 'general':
                 self.configure_general(param['general'])
             else:
-                self.configure_pipeline(param)
+                self.set_pipeline_parameter(param)
 
         else:
             log.critical("got unknown server command '%s'" % command)
 
-    def configure_pipeline(self, param):
+    def set_pipeline_parameter(self, param):
         try:
             channel_name = param['channel']
             channel = Channel[channel_name.upper()]

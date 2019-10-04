@@ -40,7 +40,7 @@ class Player(util.Threadbase):
         self.hwctl = hwctl.HwCtl()
         self.pipeline = Pipeline()
         self.pipeline.connect('status', self.pipeline_event)
-        self.pipeline.configure_pipeline(configuration)
+        self.pipeline.set_pipeline_parameter(configuration)
         self.start()
 
     def terminate(self):
@@ -85,24 +85,23 @@ class Player(util.Threadbase):
             play_time = float(runtime['playtime'])
             play_time_ns = play_time * util.NS_IN_SEC
 
-            # here the time precision is about to go out the window in the call to set_base_time. If and when we
-            # are preempted then the timing can be off in the millisecond range which is by any standards super awful.
+            # here the time precision is about to go out the window in the call to set_base_time in set_play_time().
+            # If and when we are preempted then the timing can be off in the millisecond range which is by any
+            # standards super awful.
             # The loop is an attempt to get some kind of deterministic execution time.
+
             target_time_us = 37  # found empirically on an overclocked rpi 3B+
             target_window_us = 0.2
 
             for i in range(151):
                 gst_setup_start = time.time()
 
-                self.pipeline.pipeline.set_base_time(
-                    self.pipeline.pipeline.get_pipeline_clock().get_time()
-                    + play_time_ns
-                    - time.time() * util.NS_IN_SEC)
+                self.pipeline.set_play_time(play_time_ns)
 
                 gst_setup_elapsed_us = (time.time() - gst_setup_start) * 1000000
 
                 if (gst_setup_elapsed_us > target_time_us - i * target_window_us and
-                        gst_setup_elapsed_us < target_time_us + i * target_window_us):
+                    gst_setup_elapsed_us < target_time_us + i * target_window_us):
                     break
 
             setup_message = 'time setup took %.3f us in %i tries' % (gst_setup_elapsed_us, i)
@@ -113,9 +112,7 @@ class Player(util.Threadbase):
 
             play_delay_ns = play_time_ns - time.time() * util.NS_IN_SEC
 
-            self.pipeline.pipeline.set_start_time(Gst.CLOCK_TIME_NONE)
-
-            self.pipeline.pipeline.set_state(Gst.State.PLAYING)
+            self.pipeline.delayed_start()
 
             self.server_audio_state = ServerAudioState.PLAYING
 
@@ -129,12 +126,12 @@ class Player(util.Threadbase):
         elif command == 'stopping':
             log.info('---- stopping ----')
             self.hwctl.play(False)
+            self.server_audio_state = ServerAudioState.STOPPED
+
             if self.realtime_autostart():
                 self.pipeline.construct_and_start_local_pipeline()
             else:
                 self.pipeline.stop_pipeline()
-
-            self.server_audio_state = ServerAudioState.STOPPED
             self.playing_start_time = None
             self.buffer_state = BufferState.MONITOR_STARTING
             self.last_status_time = None
@@ -158,18 +155,20 @@ class Player(util.Threadbase):
             except:
                 pass
 
+            # pipeline will be started if message contains 'setcodec'
             self.pipeline.process_message(message)
+
             if not before and self.realtime_autostart():
                 self.pipeline.construct_and_start_local_pipeline()
 
     def print_stats(self):
         try:
             position, duration = self.pipeline.pipeline.query_position(Gst.Format.TIME)
-            buffer_size, buffered = self.pipeline.get_buffer_values()
+            buffer_target, currently_buffered = self.pipeline.get_buffer_values()
             duration_secs = int(duration) / util.NS_IN_SEC
             playtime_skew = (time.time() - self.playing_start_time) - duration_secs
             log.info("playing time %.3f sec, buffered %i bytes. Skew %.6f" %
-                     (duration_secs, buffered, playtime_skew))
+                     (duration_secs, currently_buffered, playtime_skew))
         except NameError:
             return True
         except Exception as e:
@@ -184,13 +183,13 @@ class Player(util.Threadbase):
     to a more elegant multicast then it makes more sense to be prepared for lost data
     and perhaps a strategy like this.
     """
-    def pipeline_monitor(self):
+    def buffer_level_monitor(self):
         self.monitor_lock.acquire()
 
-        buffer_size, currently_buffered = self.pipeline.get_buffer_values()
+        buffer_target, currently_buffered = self.pipeline.get_buffer_values()
 
         if self.buffer_state == BufferState.MONITOR_STARTING:
-            if currently_buffered > buffer_size:
+            if currently_buffered > buffer_target:
                 self.starvation_alerts = self.NOF_STARVATION_ALERTS
                 self.buffer_state = BufferState.MONITOR_STARVATION
                 log.info('monitor: initial buffering complete, sending buffered')
@@ -212,7 +211,7 @@ class Player(util.Threadbase):
                 self.starvation_alerts = self.NOF_STARVATION_ALERTS
 
         else:
-            if currently_buffered > buffer_size:
+            if currently_buffered > buffer_target:
                 self.buffer_state = BufferState.MONITOR_STARVATION
                 log.info('monitor: buffer ready again, sending buffered')
                 self.emit('status', 'buffered')
@@ -229,7 +228,7 @@ class Player(util.Threadbase):
     def new_audio(self, audio):
         self.pipeline.new_audio(audio)
         if audio:
-            self.pipeline_monitor()
+            self.buffer_level_monitor()
 
     def run(self):
         try:
@@ -239,7 +238,9 @@ class Player(util.Threadbase):
                 time.sleep(0.1)
 
                 if self.server_audio_state != ServerAudioState.STOPPED:
-                    self.pipeline_monitor()
+                    # normally there will be a gstreamer pipeline to query but things are not always normal..
+                    if self.pipeline.has_pipeline():
+                        self.buffer_level_monitor()
 
                     if (self.is_playing() and self.last_status_time and
                             (time.time() - self.last_status_time > 2)):
