@@ -1,9 +1,9 @@
 from client import client_socket
 from client import player
-from common import util
-from common import multicast
+from common import util, multicast
 from common.log import logger as log
-import logging
+from client import hwctl, gpio
+import logging, traceback
 import sys
 import time
 import signal
@@ -27,7 +27,8 @@ class Client(util.Threadbase):
         self.mainloop = GLib.MainLoop()
         self.server_endpoint = None
         self.terminate_socket = False
-        self.player = player.Player(configuration)
+        self.hwctrl = hwctl.HwCtl()
+        self.player = player.Player(configuration, self.hwctrl)
         self.player.connect('status', self.slot_player_status)
 
         self.socket = None
@@ -56,6 +57,7 @@ class Client(util.Threadbase):
         self.player.terminate()
         if self.player.isAlive():
             self.player.join()
+        self.hwctrl.terminate()
         super().terminate()
 
     def connected(self):
@@ -89,6 +91,7 @@ class Client(util.Threadbase):
         try:
             self.player.process_server_message(message)
         except Exception as e:
+            log.debug(traceback.format_exc())
             log.critical('client slot_new_message "%s" caught "%s"' % (str(message), str(e)))
 
     def slot_socket(self, state):
@@ -116,6 +119,7 @@ class Client(util.Threadbase):
 
     def server_connector(self):
         delay = 0.1
+        connected = False
         while not self.terminated:
             if self.terminate_socket:
                 self.socket_lock.acquire()
@@ -124,12 +128,19 @@ class Client(util.Threadbase):
                     self.socket.join()
                     self.socket = None
                 self.server_endpoint = None
-                self.player.process_server_message({'command': 'stopping'})
+                self.player.process_server_message({'runtime': {'command': 'stopping'}})
                 log.info('waiting for server connection')
                 self.server_offline_counter = 10
                 self.socket_lock.release()
+                if connected:
+                    self.hwctrl.connected_to_server(False)
+                    connected = False
 
             if not self.server_endpoint:
+                if connected:
+                    self.hwctrl.connected_to_server(False)
+                    connected = False
+
                 if self.server_offline_counter:
                     self.server_offline_counter -= 1
                     if not self.server_offline_counter:
@@ -145,6 +156,10 @@ class Client(util.Threadbase):
                 if delay < 5.0:
                     delay += 0.1
             else:
+                if not connected:
+                    self.hwctrl.connected_to_server(True)
+                    connected = True
+
                 delay = 0.1
 
             _delay = delay
@@ -178,8 +193,9 @@ def generate_config(template):
             'alsa': {
                 'devices': ['hw:0', 'hw:1']
             },
-            'group': 'stereo',
-            'device': 'stereo'
+            'group': 'groupname',
+            'device': 'devicename',
+            'cec': 'false'
         }
         configuration.update(extra)
 
@@ -217,27 +233,27 @@ def start():
         parser.add_argument('--nocheck', action='store_true',
                             help='don\'t check for multiple client instances')
 
-        results = parser.parse_args()
+        args = parser.parse_args()
 
-        if results.newcfg:
+        if args.newcfg:
             configuration = generate_config(template=True)
             config = json.dumps(configuration, indent=4, sort_keys=True)
             print(config)
             exit(0)
 
-        if not results.nocheck:
+        if not args.nocheck:
             util.get_pid_lock('ludit_client')
 
-        if results.verbose:
+        if args.verbose:
             log.setLevel(logging.DEBUG)
 
         try:
-            configuration = load_configuration(results.cfg)
+            configuration = load_configuration(args.cfg)
         except:
             configuration = generate_config(template=False)
 
         try:
-            groupname, devicename = results.id.split(':')
+            groupname, devicename = args.id.split(':')
             configuration['group'] = groupname
             configuration['device'] = devicename
         except:
@@ -257,6 +273,8 @@ def start():
 
         signal.signal(signal.SIGINT, ctrl_c_handler)
 
+        gpio.init()
+
         _client = None
         _client = Client(configuration)
         _client.join()
@@ -264,4 +282,6 @@ def start():
         log.info('client exiting')
 
     except Exception as e:
+        if args.verbose:
+            print(traceback.format_exc())
         log.critical('client exception: %s' % str(e))

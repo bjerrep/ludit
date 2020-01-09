@@ -18,8 +18,9 @@ class Group(util.Base):
         self.devices = []
         self.connected_devices = []
         self.jsn = jsn
+
         self.groupname = jsn['general']['name']
-        log.info('[%s] group is configuring' % self.groupname)
+        log.info(f'[{self.groupname}] group is configuring (play enabled={self.play_enabled()})')
         self.lock = threading.Lock()
 
         for device_json in jsn['general']['devices']:
@@ -44,9 +45,12 @@ class Group(util.Base):
         log.info("group failed to find device %s", devicename)
         raise util.DeviceException
 
+    def play_enabled(self):
+        return self.jsn['general']['playing'] == 'true'
+
     def ready_to_play(self):
         # group can play as long as just a single client is connected
-        return self.connected_devices and self.jsn['general']['playing'] == 'true'
+        return self.connected_devices and self.play_enabled()
 
     def get_devices(self):
         return self.devices
@@ -67,7 +71,7 @@ class Group(util.Base):
     def slot_device_connected(self, device):
         if device not in self.connected_devices:
             self.connected_devices.append(device)
-            log.info('connected to %s:%s' % (self.groupname, device.name()))
+            log.info(f'connected to {self.groupname}:{device.name()}')
             if len(self.connected_devices) == 1:
                 self.emit('groupconnected', self)
         else:
@@ -76,8 +80,8 @@ class Group(util.Base):
     def slot_device_disconnected(self, device):
         if device in self.connected_devices:
             self.connected_devices.remove(device)
-            log.info('disconnected from %s' % device.name())
-            if not self.ready_to_play():
+            log.info(f'disconnected from {self.groupname}:{device.name()}')
+            if not self.connected_devices:
                 self.emit('groupdisconnected', self)
         else:
             log.error('%s disconnected while not connected' % device.name())

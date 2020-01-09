@@ -5,6 +5,7 @@ import time
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import GObject, Gst
+from client import cecaudio
 
 GObject.threads_init()
 Gst.init(None)
@@ -16,7 +17,13 @@ class Channel(Enum):
     STEREO = 2
 
 
+class Band(Enum):
+    LOW = 0,
+    HIGH = 1
+
+
 LOG_FIRST_AUDIO_COUNT = 5
+LOCAL_CEC_DEFAULT_VOLUME = 0.05
 
 
 class Pipeline(util.Base):
@@ -25,12 +32,16 @@ class Pipeline(util.Base):
     pipeline = None
     appsrc_element = None
     last_queue = None
-    default_buffer_size = 100000 # can be redefined from configuration file
+    default_buffer_size = 100000        # can be overruled from configuration file
     log_first_audio = LOG_FIRST_AUDIO_COUNT
 
     source_gain = 1.0
     codec = 'pcm'
-    master_channel_volumes = [0.0, 0.0]
+    remote_streaming_volumes = [0.0, 0.0]           # will incorporate any balance offsets
+    local_cec_volume = LOCAL_CEC_DEFAULT_VOLUME
+    cec_muted = False
+    cec = None
+
     balance = 0.0
     highlowbalance = 0.0
     xoverfreq = 1000.0
@@ -39,17 +50,22 @@ class Pipeline(util.Base):
     eq_band_gain = [0.0] * eq_bands
     user_volume = 0.3
     channel_list = []
-    alsa_hw_device = {'0': '', '1': ''}
+    alsa_hw_device = {'0': '', '1': ''}     # The default empty will be using default alsa device
+    channel = False                         # class Channel
 
     stereo_enhance_depth = 0.0
     stereo_enhance_enabled = False
     noise_gate_level_db = None
     noise_gate_duration_secs = None
 
-    def __init__(self):
+    def __init__(self, cec_controlled=True):
+        if cec_controlled:
+            self.cec = cecaudio.CECAudio(self.cec_callback)
         pass
 
     def terminate(self):
+        if self.cec:
+            self.cec.terminate()
         self.stop_pipeline()
 
     def has_pipeline(self):
@@ -65,10 +81,15 @@ class Pipeline(util.Base):
         return self.noise_gate_level_db is not None
 
     def set_play_time(self, play_time_ns):
-        self.pipeline.set_base_time(
-            self.pipeline.get_pipeline_clock().get_time()
-            + play_time_ns
-            - time.time() * util.NS_IN_SEC)
+        try:
+            self.pipeline.set_base_time(
+                self.pipeline.get_pipeline_clock().get_time()
+                + play_time_ns
+                - time.time() * util.NS_IN_SEC)
+        except Exception as e:
+            log.error(f'got fatal exception {e}')
+            log.error(f'{self.pipeline.get_pipeline_clock().get_time()} + {play_time_ns} - {time.time() * util.NS_IN_SEC}')
+            raise e
 
     def delayed_start(self):
         self.pipeline.set_start_time(Gst.CLOCK_TIME_NONE)
@@ -97,6 +118,24 @@ class Pipeline(util.Base):
 
         except Exception as e:
             log.critical('[%s] parsing cutter message gave "%s"' % (self.name, str(e)))
+
+    def get_pipeline_volume(self, channel, realtime):
+        if realtime:
+            return self.local_cec_volume
+        else:
+            return self.remote_streaming_volumes[int(channel)]
+
+    def get_channel_mask(self, band: Band, channel: int):
+        """
+        If playing stereo on a single soundcard then the 4 output channels
+        needs to know where they should be located 'on the soundcard'. This
+        is done by setting a gstreamer 'channel-mask' on each of the 4 channels.
+        """
+        if self.channel == Channel.STEREO and self.alsa_hw_device[0] == self.alsa_hw_device[1]:
+            bitmasks = (0x01, 0x02, 0x10, 0x20)
+            mask = bitmasks[channel * 2 + band.value]
+            return 'audioconvert ! audio/x-raw,channels=1,channel-mask=(bitmask)%02x !' % mask
+        return ''
 
     def construct_pipeline(self, realtime=False):
         if self.pipeline:
@@ -146,14 +185,25 @@ class Pipeline(util.Base):
                 buffer_time = 200000
 
             for channel in self.channel_list:
-                log.debug('pipeline channel %s playing in alsa device "%s" (else default)' %
-                          (channel, self.alsa_hw_device[channel]))
+
+                if self.channel == Channel.STEREO and self.alsa_hw_device['0'] != self.alsa_hw_device['1']:
+                    alsa_device = self.alsa_hw_device[channel]
+                else:
+                    # left, right and single soundcard stereo will only use the first single alsa device.
+                    alsa_device = self.alsa_hw_device['0']
+
+                log.debug('pipeline channel %s playing in alsa device "%s"' %
+                          (channel, alsa_device if alsa_device else 'default'))
+
+                lo_mask = self.get_channel_mask(Band.LOW, int(channel))
+                hi_mask = self.get_channel_mask(Band.HIGH, int(channel))
+
                 try:
                     eq_band_gains = ''.join(
                         ['band%i=%f ' % (band, self.eq_band_gain[band]) for band in range(self.eq_bands)])
                     eq_setup = 'equalizer-10bands name=equalizer%s %s ' % (channel, eq_band_gains)
                 except Exception as e:
-                    log.info('equalizer setup failed with %s' % str(e))
+                    log.error('equalizer setup failed with %s' % str(e))
                     eq_setup = ''
 
                 pipeline += (
@@ -164,16 +214,16 @@ class Pipeline(util.Base):
                     'volume name=vol%s volume=%f ! alsasink sync=true %s buffer-time=%d '
 
                     't%s.src_0 ! queue ! audiocheblimit poles=%i name=lowpass%s mode=low-pass cutoff=%f ! '
-                    '%s ! volume name=lowvol%s volume=%f ! i%s.sink_0 '
+                    '%s ! volume name=lowvol%s volume=%f ! %s i%s.sink_0 '
 
                     't%s.src_1 ! queue ! audiocheblimit poles=%i name=highpass%s mode=high-pass cutoff=%f ! '
-                    'volume name=highvol%s volume=%f ! i%s.sink_1 ' %
+                    'volume name=highvol%s volume=%f ! %s i%s.sink_1 ' %
                     (channel, channel,
                      channel,
                      channel,
-                     channel, self.master_channel_volumes[int(channel)], self.alsa_hw_device[channel], buffer_time,
-                     channel, self.xoverpoles, channel, self.xoverfreq, eq_setup, channel, lo, channel,
-                     channel, self.xoverpoles, channel, self.xoverfreq, channel, hi, channel))
+                     channel, self.get_pipeline_volume(int(channel), realtime), alsa_device, buffer_time,
+                     channel, self.xoverpoles, channel, self.xoverfreq, eq_setup, channel, lo, lo_mask, channel,
+                     channel, self.xoverpoles, channel, self.xoverfreq, channel, hi, hi_mask, channel))
 
             # print(pipeline)
 
@@ -213,24 +263,31 @@ class Pipeline(util.Base):
             self.pipeline.set_state(Gst.State.NULL)
             self.pipeline = None
 
-    def set_volume(self, volume):
-        if volume is not None:
-            self.user_volume = volume
-
-        for channel in self.channel_list:
-            channel_int = int(channel)
-            balance = 1.0
-            if channel_int == 0 and self.balance > 0.0:
-                balance = 1.0 - self.balance
-            elif channel_int == 1 and self.balance < 0.0:
-                balance = 1.0 + self.balance
-
-            channel_vol = max(0.0005, self.user_volume * self.source_gain * balance)
-            self.master_channel_volumes[channel_int] = channel_vol
+    def set_volume(self, volume, local_cec=False):
+        if local_cec:
             if self.pipeline:
-                log.debug('channel %s volume %.3f' % (channel, channel_vol))
-                volume_element = self.pipeline.get_by_name('vol%s' % channel)
-                volume_element.set_property('volume', channel_vol)
+                log.debug('local cec volume %.3f' % volume)
+                for channel in self.channel_list:
+                    volume_element = self.pipeline.get_by_name('vol%s' % channel)
+                    volume_element.set_property('volume', volume)
+        else:
+            if volume is not None:
+                self.user_volume = volume
+
+            for channel in self.channel_list:
+                channel_int = int(channel)
+                balance = 1.0
+                if channel_int == 0 and self.balance > 0.0:
+                    balance = 1.0 - self.balance
+                elif channel_int == 1 and self.balance < 0.0:
+                    balance = 1.0 + self.balance
+
+                channel_vol = max(0.0005, self.user_volume * self.source_gain * balance)
+                self.remote_streaming_volumes[channel_int] = channel_vol
+                if self.pipeline:
+                    log.debug('channel %s volume %.3f' % (channel, channel_vol))
+                    volume_element = self.pipeline.get_by_name('vol%s' % channel)
+                    volume_element.set_property('volume', channel_vol)
 
     def set_balance(self, balance):
         self.balance = balance
@@ -270,15 +327,25 @@ class Pipeline(util.Base):
         else:
             log.critical("got unknown server command '%s'" % command)
 
-    def set_pipeline_parameter(self, param):
+    def set_pipeline_parameter(self, param: dict):
+        """
+        Parameters will initially be set in two passes, first from reading
+        the local client configuration and later from parameters sent by
+        the server. Both these passes will predate the construction of the
+        first pipeline.
+        Later calls (e.g. volume) will see the value stored and also applied
+        on any running pipeline immediately.
+        """
         try:
+            # the channel identifier from the server configuration, right, left or stereo
             channel_name = param['channel']
-            channel = Channel[channel_name.upper()]
-            if channel:
+            self.channel = Channel[channel_name.upper()]
+            if self.channel:
+                log.info('device is configuring as "%s"' % self.channel)
                 self.channel_list = []
-                if channel == Channel.LEFT or channel == Channel.STEREO:
+                if self.channel == Channel.LEFT or self.channel == Channel.STEREO:
                     self.channel_list.append('0')
-                if channel == Channel.RIGHT or channel == Channel.STEREO:
+                if self.channel == Channel.RIGHT or self.channel == Channel.STEREO:
                     self.channel_list.append('1')
         except:
             pass
@@ -287,11 +354,14 @@ class Pipeline(util.Base):
         if alsa:
             alsa_device = alsa['devices'][0]
             self.alsa_hw_device['0'] = 'device=%s' % alsa_device
-            log.debug('left alsa device is %s' % alsa_device)
+            log.debug('first alsa device is %s' % alsa_device)
 
-            alsa_device = alsa['devices'][1]
-            self.alsa_hw_device['1'] = 'device=%s' % alsa_device
-            log.debug('right alsa device is %s' % alsa_device)
+            try:
+                alsa_device = alsa['devices'][1]
+                self.alsa_hw_device['1'] = 'device=%s' % alsa_device
+                log.debug('second alsa device is %s' % alsa_device)
+            except:
+                log.info('no second alsa device found, using alsa device "%s" for all outputs' % self.alsa_hw_device['0'])
 
         levels = param.get('levels')
         if levels:
@@ -393,3 +463,19 @@ class Pipeline(util.Base):
             buf = Gst.Buffer.new_allocate(None, len(audio), None)
             buf.fill(0, audio)
             self.appsrc_element.emit('push-buffer', buf)
+
+    def cec_callback(self, action):
+        global high_volume, low_volume, cec_audio_control, muted
+        if not self.realtime_enabled():
+            return
+        if action == 'vol_up' and low_volume < 10.0:
+            self.cec_muted = False
+            self.local_cec_volume *= 1.2
+        elif action == 'vol_down' and low_volume > 0.0003:
+            self.cec_muted = False
+            cec_audio_control = True
+            self.local_cec_volume *= 1.0 / 1.2
+        elif action == 'mute':
+            self.cec_muted = not self.cec_muted
+
+        self.set_volume(self.local_cec_volume if not self.cec_muted else 0.0001, True)

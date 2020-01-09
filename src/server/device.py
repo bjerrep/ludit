@@ -32,6 +32,9 @@ class Device(util.Base):
     def state(self):
         return self._state
 
+    def device_connected(self):
+        return self.connected
+
     def slot_message(self, msg):
         msg['clientname'] = self.devicename
         if msg['command'] == 'status':

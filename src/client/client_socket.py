@@ -87,6 +87,14 @@ class ClientSocket(util.Threadbase):
                     self.emit('socket', 'closed')
                     self.terminate()
                 time.sleep(0.1)
+            except ConnectionRefusedError:
+                # the server needs to get flipped. Reason unknown.
+                if self.connected:
+                    self.connected = False
+                    log.error('server refused the connection')
+                    self.emit('socket', 'closed')
+                    self.terminate()
+                time.sleep(0.1)
             except util.MalformedPacketException:
                 self.connected = False
                 log.error('got malformed data, restarting')

@@ -27,8 +27,8 @@ class PlaySequencer(util.Base):
             group_jsn['streaming'] = streaming
 
             _group = group.Group(group_jsn)
-            _group.connect('groupconnected', self.slot_connected)
-            _group.connect('groupdisconnected', self.slot_disconnected)
+            _group.connect('groupconnected', self.slot_group_connected)
+            _group.connect('groupdisconnected', self.slot_group_disconnected)
             _group.connect('status', self.slot_group_status)
             self.groups.update({group_name: _group})
             if not group_jsn['general']['enabled']:
@@ -42,13 +42,16 @@ class PlaySequencer(util.Base):
         for _group in self.groups.values():
             _group.terminate()
 
-    def slot_connected(self, group):
+    def slot_group_connected(self, group):
         log.debug('group %s connected' % group.name())
         self.connected_groups.append(group)
 
-    def slot_disconnected(self, group):
-        self.connected_groups.remove(group)
-        log.info('group %s disconnected' % group.name())
+    def slot_group_disconnected(self, group):
+        try:
+            self.connected_groups.remove(group)
+            log.info('group %s disconnected' % group.name())
+        except:
+            log.warning(f'internal error while group {group.name()} disconnecting')
         if not self.connected_groups:
             log.info('all groups disconnected, no connected devices left')
             self.emit('allgroupsdisconnected')
@@ -101,7 +104,9 @@ class PlaySequencer(util.Base):
             log.debug('state changing from %s to %s' % (self.m_state, new_state))
             self.m_state = new_state
             now = time.time()
-            for _group in self.playing_groups():
+            play_groups = self.playing_groups()
+
+            for _group in play_groups:
                 if new_state == group.State.BUFFERING:
                     _group.send({'runtime': {'command': 'buffering'}})
                 elif new_state == group.State.STOPPED:

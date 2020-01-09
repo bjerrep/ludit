@@ -51,13 +51,12 @@ class Server(util.Threadbase):
 
     def terminate(self):
         log.debug('server terminate called')
+        super().terminate()
         self.ws.terminate()
         self.multicast.terminate()
         self.input_mux.terminate()
         if self.play_sequencer:
             self.play_sequencer.terminate()
-
-        super().terminate()
         log.debug('server terminated')
 
     def load_configuration(self):
@@ -87,30 +86,42 @@ class Server(util.Threadbase):
         log.error('playsequenser reports that all groups (and devices) have disconnected')
         self.play_thread_active = False
 
+    def multicast_tx(self, command, device_id, key=None, value=None):
+        msg = {'command': command,
+               'from': 'server',
+               'to': device_id}
+        if key:
+            msg.update({key: value})
+        self.multicast.send(msg)
+
     def multicast_rx(self, message):
-        device = "unknown"
+        if self.terminated:
+            return
+        device_id = "unknown"
         try:
             command = message['command']
             if command == 'get_server_socket':
                 if message['version'] != util.LUDIT_VERSION:
                     raise Exception('server version is %s but client version is %s' %
                                     (util.LUDIT_VERSION, message['version']))
-                device = message['from']
-                groupname, devicename = device.split(':')
-                endpoint = self.play_sequencer.get_group(groupname).get_device(devicename).get_endpoint()
-                log.debug('sending tcp socket endpoint %s to device %s' % (str(endpoint), device))
-                self.multicast.send({'command': 'server_socket',
-                                     'from': 'server',
-                                     'to': device,
-                                     'endpoint': str(endpoint)})
+                device_id = message['from']
+                groupname, devicename = device_id.split(':')
+                device = self.play_sequencer.get_group(groupname).get_device(devicename)
+                if device.connected:
+                    log.warning(f'ignoring second connection request from {device_id}, already have a device with that id')
+                    self.multicast_tx('server_socket', device_id, 'endpoint', 'None')
+                    return
+                endpoint = device.get_endpoint()
+                log.debug('sending tcp socket endpoint %s to device %s' % (str(endpoint), device_id))
+                self.multicast_tx('server_socket', device_id, 'endpoint', str(endpoint))
         except Exception as e:
-            log.error('connection failed from unknown device %s (%s)' % (device, str(e)))
-            self.multicast.send({'command': 'server_socket',
-                                 'from': 'server',
-                                 'to': device,
-                                 'endpoint': "None"})
+            log.error('connection failed from unknown device %s (%s)' % (device_id, str(e)))
+            self.multicast_tx('server_socket', device_id, 'endpoint', 'None')
 
     def websocket_rx(self, message):
+        if self.terminated:
+            return
+
         command = message['command']
 
         if command == 'get_configuration':
