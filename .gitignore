@@ -8,5 +8,8 @@ src/*.cfg
 
 src/export*
 
+# a place to keep local backups etc
+local_user
+
 # the ludit_local.js.template is force added, ignore all other copies
 ludit_local*
