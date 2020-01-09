@@ -1,0 +1,18 @@
+{
+    "papower" : {
+        "pin":  14,
+        "active": true
+    },
+    "speaker" : {
+        "pin":  17,
+        "active": true
+    },
+    "ledA" : {
+        "pin":  23,
+        "active": true
+    },
+    "ledB" : {
+        "pin":  22,
+        "active": true
+    }
+}
