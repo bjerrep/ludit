@@ -17,9 +17,15 @@ class ServerSocket(util.Threadbase):
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # close gracefully from this end
             l_onoff = 1
             l_linger = 0
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', l_onoff, l_linger))
+            # and detect peers that didn't close gracefully with a reset
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            self.socket.setsockopt(socket.SOL_TCP, socket.TCP_KEEPIDLE, 2)
+            self.socket.setsockopt(socket.SOL_TCP, socket.TCP_KEEPINTVL, 2)
+            self.socket.setsockopt(socket.SOL_TCP, socket.TCP_KEEPCNT, 2)
             self.socket.bind((util.local_ip(), 0))
             self.socket.listen(1)
         except socket.error as e:
@@ -75,7 +81,7 @@ class ServerSocket(util.Threadbase):
                 timeoutsecs = 0.1
 
                 while True:
-                    result = select.select([self.connection], [], [], timeoutsecs)
+                    result = select.select([self.connection], [self.connection], [], timeoutsecs)
                     if result and result[0]:
                         break
                     if self.terminated:
