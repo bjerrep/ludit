@@ -199,8 +199,7 @@ function insert_extended_html(group, index, type, serial, page) {
 
 // Add a node to the 'metric' treetable or update an existing one
 
-function add_metric(root, sub, text, value) {
-	var table = $("#table_metrics")
+function add_node(root, sub, text, value, table) {
 
 	var rootNode = table.treetable("node", root);
 	if (!rootNode) {
@@ -232,6 +231,13 @@ function add_metric(root, sub, text, value) {
 	}
 }
 
+function add_metric(root, sub, text, value) {
+    add_node(root, sub, text, value, $("#table_metrics"));
+}
+    
+function add_twitse_metric(root, sub, text, value) {
+    add_node(root, sub, text, value, $("#twitse_table_metrics"));
+}
 
 function reload_configuration() {
 	var grps = ludit_saved_configuration['groups'];
