@@ -1,12 +1,15 @@
 [Unit]
 Description=ludit client remote
-Wants=network-online.target
-After=network-online.target
+Requires=systemd-networkd.socket
+After=systemd-networkd.socket
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=<git root>/src
+
+ExecStartPre=/usr/lib/systemd/systemd-networkd-wait-online --interface=wlan0 -o routable
+
 # For alternative ways to run the script under systemd see 'ludit_server.service.template'
 ExecStart=/usr/bin/python <git root>/src/run_remote.py --id <id>
 Restart=on-failure

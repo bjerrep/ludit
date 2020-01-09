@@ -1,5 +1,7 @@
 [Unit]
 Description=ludit server
+
+# the time-sync.target is from systemd-timesyncd
 Wants=time-sync.target
 After=time-sync.target
 
