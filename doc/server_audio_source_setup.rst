@@ -56,6 +56,8 @@ Get bluetooth running as the first thing, including pairing and trusting the sou
 
 For starting bluealsa manually have a look at the systemd file in ./systemd/bluealsa.service.template (in the bluealsa fork repository !). Like for spotifyd it shows how to create a /tmp/audio fifo and a typical spotifyd launch line.
 
+If anonymous users should be able to play over bluetooth without any trusting or pairing then use a bluetooth autoconnect script like this one: (not tried this specific one but it looks nice)
+https://gist.github.com/oleq/24e09112b07464acbda1#file-a2dp-autoconnect
 
 Audio source: Mopidy
 *********************
