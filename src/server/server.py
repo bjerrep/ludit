@@ -6,7 +6,7 @@ from common import multicast
 from common import websocket
 from server import playsequencer
 from server import inputmux
-import time
+import time, traceback
 import signal
 import argparse
 import queue
@@ -314,14 +314,14 @@ def start():
         parser.add_argument('--verbose', action='store_true',
                             help='enable more logging')
 
-        results = parser.parse_args()
+        args = parser.parse_args()
 
         util.get_pid_lock('ludit_server')
 
-        if results.verbose:
+        if args.verbose:
             log.setLevel(logging.DEBUG)
 
-        if results.newcfg:
+        if args.newcfg:
             config = json.dumps(generate_config(), indent=4, sort_keys=True)
             print(config)
             exit(0)
@@ -345,9 +345,11 @@ def start():
         signal.signal(signal.SIGPIPE, ignore)
 
         _server = None
-        _server = Server(results.cfg)
+        _server = Server(args.cfg)
         _server.join()
         log.info('server exiting')
 
     except Exception as e:
+        if args.verbose:
+            print(traceback.format_exc())
         util.die('server exception: %s' % str(e))
