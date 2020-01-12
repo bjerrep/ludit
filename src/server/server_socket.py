@@ -81,7 +81,7 @@ class ServerSocket(util.Threadbase):
                 timeoutsecs = 0.1
 
                 while True:
-                    result = select.select([self.connection], [self.connection], [], timeoutsecs)
+                    result = select.select([self.connection], [], [], timeoutsecs)
                     if result and result[0]:
                         break
                     if self.terminated:
