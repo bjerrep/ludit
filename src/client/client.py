@@ -30,6 +30,7 @@ class Client(util.Threadbase):
         self.hwctrl = hwctl.HwCtl()
         self.player = player.Player(configuration, self.hwctrl)
         self.player.connect('status', self.slot_player_status)
+        self.player.connect('message', self.slot_player_message)
 
         self.socket = None
         self.server_offline_counter = 10
@@ -55,7 +56,7 @@ class Client(util.Threadbase):
             self.socket.terminate()
             self.socket.join()
         self.player.terminate()
-        if self.player.isAlive():
+        if self.player.is_alive():
             self.player.join()
         self.hwctrl.terminate()
         super().terminate()
@@ -72,26 +73,33 @@ class Client(util.Threadbase):
                     log.critical("server refused the connection (check the group and device name)")
                     time.sleep(1)
                     util.die('exiting..', 1, True)
-                log.info('server found, connecting to %s' % endpoint)
+                log.info(f'server found, connecting to {endpoint}')
                 self.server_endpoint = util.split_tcp(endpoint)
                 self.start_socket()
 
-    def slot_player_status(self, message):
-        if message in ('buffered', 'starved'):
+    def slot_player_status(self, status):
+        if status in ('buffered', 'starved'):
             if self.socket:
                 self.socket.send({'command': 'status',
                                   'clientname': self.devicename,
-                                  'state': message})
-        elif message in ('rt_stop', 'rt_play'):
-            log.info(f'realtime status: {message}')
+                                  'state': status})
+        elif status in ('rt_stop', 'rt_play'):
+            log.info(f'realtime status: {status}')
         else:
-            log.error(f'got unknown message {str(message)}')
+            log.error(f'got unknown status {str(status)}')
+
+    def slot_player_message(self, message):
+        if self.socket:
+            header = {'command': 'message',
+                      'clientname': self.devicename}
+            header.update(message)
+            self.socket.send(header)
 
     def slot_new_message(self, message):
         try:
             self.player.process_server_message(message)
         except Exception as e:
-            log.debug(traceback.format_exc())
+            log.critical(traceback.format_exc())
             log.critical('client slot_new_message "%s" caught "%s"' % (str(message), str(e)))
 
     def slot_socket(self, state):
@@ -210,6 +218,8 @@ def load_configuration(configuration_file):
             log.info('loaded configuration %s' % configuration_file)
             if version != util.CONFIG_VERSION:
                 util.die('expected configuration version %s but found version %s' % (util.CONFIG_VERSION, version))
+    except json.JSONDecodeError as e:
+        util.die(f'got fatal error loading configuration file "{e}"')
     except Exception:
         log.warning('no configuration file specified (--cfg), using defaults')
         configuration = generate_config()
@@ -247,9 +257,10 @@ def start():
         if args.verbose:
             log.setLevel(logging.DEBUG)
 
-        try:
+        if args.cfg:
             configuration = load_configuration(args.cfg)
-        except:
+        else:
+            log.info('no configuration file, using defaults')
             configuration = generate_config(template=False)
 
         try:
@@ -257,6 +268,7 @@ def start():
             configuration['group'] = groupname
             configuration['device'] = devicename
         except:
+            log.debug(configuration)
             if not configuration.get('group'):
                 raise Exception('need a group:device name from --id argument or configuration file')
 

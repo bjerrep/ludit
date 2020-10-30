@@ -17,7 +17,7 @@ class SourceMopidy(util.Threadbase):
         super(SourceMopidy, self).__init__(name=name)
         self.mopidy_address = mopidy_ws_address
         self.mopidy_port = mopidy_ws_port
-        self.tcp = SourceTCP(mopidy_gst_port)
+        self.tcp = SourceTCP(mopidy_gst_port) # fixit seems wrong ?
         self.tcp.connect("event", self.mopidy_event)
         self.volume = -1
         self.loop = asyncio.new_event_loop()

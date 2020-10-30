@@ -5,17 +5,23 @@ import subprocess
 import sys
 import os
 from connectable import Connectable
+from enum import Enum
 
 NS_IN_SEC = 1000000000
 
 LUDIT_VERSION = "0.1"
-CONFIG_VERSION = "0.3"
+CONFIG_VERSION = "0.4"
 
 multicast_ip = '225.168.1.102'
 multicast_port = 45655
 
 remote_multicast_ip = multicast_ip
 remote_multicast_port = multicast_port + 1
+
+
+class LowBufferHandler(Enum):
+    starved = 0
+    silence = 1
 
 
 class Base(Connectable):

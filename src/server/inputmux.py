@@ -28,6 +28,7 @@ class InputMux(util.Threadbase):
         log.info('inputmux is starting sources')
         self.queue = queue.Queue()
         self.source_event_lock = threading.Lock()
+        self.mainloop = None
 
         self.log_first_audio = LOG_FIRST_AUDIO_COUNT
         self.now_playing = None
@@ -35,45 +36,48 @@ class InputMux(util.Threadbase):
         self.timeout_preset_ticks = int(streaming_config['audiotimeout']) * 10
         self.audio_buffer = bytearray()
 
-        self.sourcefifo = sourcefifo.SourceFifo()
-        self.sourcefifo.connect('event', self.source_event)
+        self.sources = []
+        _sourcefifo = sourcefifo.SourceFifo()
+        _sourcefifo.connect('event', self.source_event)
+        self.sources.append(_sourcefifo)
 
-        self.sourcetcp = sourcetcp.SourceTCP(source_config['gstreamer_port'])
-        self.sourcetcp.connect('event', self.source_event)
+        for gst_source in source_config['gstreamer']:
+            if gst_source['enabled']:
+                _sourcetcp = sourcetcp.SourceTCP(
+                    gst_source['format'],
+                    gst_source['samplerate'],
+                    gst_source['port'])
+                _sourcetcp.connect('event', self.source_event)
+                self.sources.append(_sourcetcp)
 
-        self.sourcespotifyd = sourcespotifyd.SourceSpotifyd()
-        self.sourcespotifyd.connect('event', self.source_event)
+        _sourcespotifyd = sourcespotifyd.SourceSpotifyd()
+        _sourcespotifyd.connect('event', self.source_event)
+        self.sources.append(_sourcespotifyd)
 
         if source_config['mopidy_ws_enabled'] == 'on':
-            self.source_mopidy = sourcemopidy.SourceMopidy(source_config['mopidy_ws_address'],
+            _source_mopidy = sourcemopidy.SourceMopidy(source_config['mopidy_ws_address'],
                                                            source_config['mopidy_ws_port'],
                                                            source_config['mopidy_gst_port'])
-            self.source_mopidy.connect('event', self.source_event)
-        else:
-            self.source_mopidy = None
+            _source_mopidy.connect('event', self.source_event)
+            self.sources.append(_source_mopidy)
 
         try:
-            self.alsasrc = None
-            if source_config['alsasource']['enabled'] == 'true':
-                self.alsasrc = sourcealsa.SourceAlsa(source_config['alsasource'])
-                self.alsasrc.connect('event', self.source_event)
-        except:
-            pass
+            if source_config['alsasource']['enabled']:
+                _alsasrc = sourcealsa.SourceAlsa(source_config['alsasource'])
+                _alsasrc.connect('event', self.source_event)
+                self.sources.append(_alsasrc)
+        except Exception as e:
+            log.warning(f'unable to start alsasource, "{e}"')
 
-        self.audiominblocksize = int(source_config['audiominblocksize'])
+        self.audiominblocksize = source_config['audiominblocksize']
 
         threading.Thread(target=self.gst_mainloop_thread).start()
         self.start()
 
     def terminate(self):
         super().terminate()
-        self.sourcefifo.terminate()
-        self.sourcetcp.terminate()
-        self.sourcespotifyd.terminate()
-        if self.source_mopidy:
-            self.source_mopidy.terminate()
-        if self.alsasrc:
-            self.alsasrc.terminate()
+        for source in self.sources:
+            source.terminate()
         self.mainloop.quit()
 
     @staticmethod

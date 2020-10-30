@@ -14,6 +14,7 @@ class SourceFifo(util.Threadbase):
     the unmodified a2dp encoded audio.
     """
     signals = 'event'
+    sync = False
 
     def __init__(self):
         super(SourceFifo, self).__init__(name='fifo')
@@ -73,10 +74,15 @@ class SourceFifo(util.Threadbase):
                             if data.startswith(b'::'):
                                 end = data.find(b'::', 2)
                                 if end == -1:
+                                    self.sync = False
                                     continue
                                 end_of_data = end + 2
 
                                 key, value = data[2:end].decode('utf-8').split('=')
+
+                                if not self.sync:
+                                    log.info('sourcefifo running')
+                                    self.sync = True
 
                                 if key == 'audio':
                                     end_of_data += int(value)
@@ -102,12 +108,16 @@ class SourceFifo(util.Threadbase):
                                 else:
                                     log.critical("got unknown inband message '%s=%s'" %
                                                  (str(key), str(value)))
+                                    self.sync = False
 
                                 data = data[end_of_data:]
                             else:
                                 if not self.terminated:
-                                    log.critical('missing header, %i bytes' % len(data))
-                                    time.sleep(0.05)
+                                    if self.sync:
+                                        self.sync = False
+                                    log.critical('in-band missing header, %i bytes' % len(data))
+                                    self.play_thread_active = False
+                                    time.sleep(0.5)
 
                     os.close(fifo)
 

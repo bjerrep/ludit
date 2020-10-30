@@ -20,9 +20,8 @@ class SourceAlsa(util.Threadbase):
 
     def __init__(self, alsa_src_config):
         super(SourceAlsa, self).__init__(name='alsa')
+        log.info('starting alsasource')
         self.config = alsa_src_config
-        self.client_buffer = self.config['client_buffer']
-        log.debug('starting alsasource')
         self.is_playing = False
         self.start()
 
@@ -84,8 +83,8 @@ class SourceAlsa(util.Threadbase):
                        'cutter name=cutter leaky=false run-length=%i threshold-dB=%f ! ' \
                        'faac ! aacparse ! avmux_adts ! appsink name=appsink' % \
                        (device,
-                        int(float(self.config['timeout']) * util.NS_IN_SEC),
-                        float(self.config['threshold_dB']))
+                        int(self.config['timeout'] * util.NS_IN_SEC),
+                        self.config['threshold_dB'])
 
             log.info('launching pipeline listening to alsa %s' % device)
             self.pipeline = Gst.parse_launch(pipeline)

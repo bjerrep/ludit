@@ -1,12 +1,13 @@
 from common.log import logger as log
 from common import util
+from server import sourcebase
 import time
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst
 
 
-class SourceTCP(util.Threadbase):
+class SourceTCP(sourcebase.SourceBase):
     """
     Hosts a gstreamer tcp server originally made for speaker testing with audio generated
     by gstreamer pipelines on the command line. It also opens up for the possibility
@@ -15,10 +16,16 @@ class SourceTCP(util.Threadbase):
     payloads simply are forwarded as-is, there are no audio processing going on here.
     """
     signals = 'event'
-
-    def __init__(self, port, name='tcp'):
+    #fixit samplerate is not needed ?
+    def __init__(self, codec, samplerate, port, name='tcp'):
+        """
+        codec: 'pcm', 'aac_adts'
+        """
         super(SourceTCP, self).__init__(name=name)
-        self.port = int(port)
+        log.info(f'starting gstreamer tcp at port {port}')
+        self.codec = codec
+        self.samplerate = samplerate
+        self.port = port
         self.pipeline = None
         self.eos = False
         self.start()
@@ -45,7 +52,7 @@ class SourceTCP(util.Threadbase):
                 if message.src == self.pipeline:
                     log.debug('pipeline state changed to %s' % Gst.Element.state_get_name(new_state))
                     if new_state == Gst.State.PLAYING:
-                        self.send_event('codec', 'aac_adts')
+                        self.send_event('codec', self.codec)
         except Exception as e:
             log.critical('[%s] parsing bus message gave %s' % (self.source_name(), str(e)))
 
@@ -69,13 +76,13 @@ class SourceTCP(util.Threadbase):
             # gst-launch-1.0 tcpserversrc host=<hostname> port=4666 ! decodebin ! audioconvert ! alsasink
             #
             ip = util.local_ip()
-            pipeline = 'tcpserversrc host=%s port=%i ! appsink name=appsink' % (ip, self.port)
+            pipeline = 'tcpserversrc host=%s port=%i ! appsink name=appsink emit-signals=true sync=false' % \
+                       (ip, self.port)
 
             log.info('launching %s pipeline listening at %s:%i' % (self.name, ip, self.port))
             self.pipeline = Gst.parse_launch(pipeline)
 
             appsink = self.pipeline.get_by_name('appsink')
-            appsink.set_property('emit-signals', True)
             appsink.connect('new-sample', self.new_sample)
 
             bus = self.pipeline.get_bus()
@@ -87,9 +94,6 @@ class SourceTCP(util.Threadbase):
 
         except Exception as e:
             log.critical("couldn't construct pipeline, %s" % str(e))
-
-    def send_event(self, key, value):
-        self.emit('event', {'name': self.name, 'key': key, 'value': value})
 
     def run(self):
         try:

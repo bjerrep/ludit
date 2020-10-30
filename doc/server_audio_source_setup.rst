@@ -87,7 +87,26 @@ For reference see https://github.com/mopidy/mopidy/pull/1712/commits/6e9ed9e8a9d
 Audio source : gstreamer
 *************************
 
-An example of a gstreamer audio source can be found in :ref:`quick_start`.
+There can be any number of gstreamer inputs configured in the server configuration file. The "gstreamer" value is a list of inputs to be initialized and it is located under "sources". The only constraint is that all enabled gstreamer inputs need to have an unique port assigned.
+
+An example of a single PCM input listening on port 4777::
+
+    "gstreamer": [
+        {
+            "enabled": "true",
+            "format": "pcm",
+            "port": "4777",
+            "samplerate": "48000"
+        }
+    ],
+
+From any LAN computer it is now possible to test if the above works with the following gstreamer pipeline::
+
+    gst-launch-1.0 audiotestsrc volume=0.01 ! audioconvert ! audio/x-raw, channels=2 ! /
+    audioresample ! audio/x-raw, format=S16LE, rate=48000 ! tcpclientsink host=<server IP> port=4777
+
+
+The :ref:`quick_start` also uses a gstreamer input for testing out.
 
 Audio source : alsa
 *******************

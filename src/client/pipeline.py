@@ -1,8 +1,7 @@
 from common.log import logger as log
 from common import util
 from enum import Enum
-import time
-import gi
+import time, gi, threading
 gi.require_version('Gst', '1.0')
 from gi.repository import GObject, Gst
 from client import cecaudio
@@ -27,13 +26,17 @@ LOCAL_CEC_DEFAULT_VOLUME = 0.05
 
 
 class Pipeline(util.Base):
-    signals = 'status'
+    signals = ('status', 'buffered')
 
-    pipeline = None
-    appsrc_element = None
-    last_queue = None
-    default_buffer_size = 100000        # can be overruled from configuration file
-    log_first_audio = LOG_FIRST_AUDIO_COUNT
+    # There are two pipelines, the first 'decoding' decodes and picks the PCM channel to use
+    decoding_pipeline = None
+    decoder_sample_rate = None
+    decoder_channels = None
+    # Second pipeline 'filter' runs PCM end to end and hosts the crossovers, volumes etc
+    filter_pipeline = None
+    filter_src = None
+    filter_buffer_size = 50000                     # can be overruled from server via configuration file
+    filter_alsa_buffer_ms = 20                     # Default. Overruled from server config
 
     source_gain = 1.0
     codec = 'pcm'
@@ -50,13 +53,20 @@ class Pipeline(util.Base):
     eq_band_gain = [0.0] * eq_bands
     user_volume = 0.3
     channel_list = []
-    alsa_hw_device = {'0': '', '1': ''}     # The default empty will be using default alsa device
-    channel = False                         # class Channel
-
+    alsa_hw_device = {'0': '', '1': ''}             # The default empty will be using default alsa device
+                                                    # Overruled from local config.
+    channel = False                                 # class Channel
+    silence_bytes_added = 0
+    realtime = False
+    enough_data_handle = None
+    stereo = False
     stereo_enhance_depth = 0.0
     stereo_enhance_enabled = False
     noise_gate_level_db = None
     noise_gate_duration_secs = None
+
+    log_first_audio = LOG_FIRST_AUDIO_COUNT
+    silence_lock = threading.Lock()
 
     def __init__(self, cec_controlled=True):
         if cec_controlled:
@@ -68,44 +78,70 @@ class Pipeline(util.Base):
             self.cec.terminate()
         self.stop_pipeline()
 
-    def has_pipeline(self):
-        return self.pipeline is not None
-
     def get_buffer_values(self):
         try:
-            return self.current_buffer_size, int(self.last_queue.get_property('current-level-bytes'))
+            return self.filter_buffer_size, int(self.filter_src.get_property('current-level-bytes'))
         except:
-            return self.current_buffer_size, 0
+            return self.filter_buffer_size, 0
 
     def realtime_enabled(self):
-        return self.noise_gate_level_db is not None
+        return self.realtime
 
     def set_play_time(self, play_time_ns):
+        """
+        :param play_time_ns: the wall clock at which playing should start
+        :return: False if the play time wasn't set
+        """
         try:
-            self.pipeline.set_base_time(
-                self.pipeline.get_pipeline_clock().get_time()
+            now_ns = time.time() * util.NS_IN_SEC
+
+            # If the server and client clocks are too far off then we might end up with a negative
+            # relative playing start time which gstreamer understandably refuses to accept. If this is
+            # the case then bail out now.
+            if play_time_ns <= now_ns:
+                log.critical('unable to start audio %3.1f seconds ago, server and client times are not in sync' %
+                             (now_ns - play_time_ns))
+                return False
+
+            # Another sign of clock mismatches will be a start time too far in the future. For now it
+            # will be a relative start time more than 1 second from now that triggers a log error.
+            # For now don't bail out on this one.
+            if play_time_ns > now_ns + util.NS_IN_SEC:
+                log.error('will start audio in %3.1f seconds, server and client times are not in sync ?' %
+                             (now_ns - play_time_ns))
+
+            self.filter_pipeline.set_base_time(
+                self.filter_pipeline.get_pipeline_clock().get_time()
                 + play_time_ns
                 - time.time() * util.NS_IN_SEC)
         except Exception as e:
             log.error(f'got fatal exception {e}')
-            log.error(f'{self.pipeline.get_pipeline_clock().get_time()} + {play_time_ns} - {time.time() * util.NS_IN_SEC}')
+            log.error(f'{self.filter_pipeline.get_pipeline_clock().get_time()} + {play_time_ns} - {time.time() * util.NS_IN_SEC}')
             raise e
+        return True
 
     def delayed_start(self):
-        self.pipeline.set_start_time(Gst.CLOCK_TIME_NONE)
-        self.pipeline.set_state(Gst.State.PLAYING)
+        self.filter_pipeline.set_start_time(Gst.CLOCK_TIME_NONE)
+        self.filter_pipeline.set_state(Gst.State.PLAYING)
 
     def bus_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
             log.debug('EOS')
         elif message.type == Gst.MessageType.ERROR:
             err, deb = message.parse_error()
-            log.critical("pipeline error: %s '%s'" % (err, deb))
+            log.critical(f'{message.src.name}: pipeline error: {err} {deb}')
             self.emit('status', 'pipeline_error')
         elif message.type == Gst.MessageType.STATE_CHANGED:
-            old_state, new_state, pending_state = message.parse_state_changed()
-            if message.src == self.pipeline:
-                log.debug('* pipeline state changed to %s' % Gst.Element.state_get_name(new_state))
+            if message.src == self.decoding_pipeline or message.src == self.filter_pipeline:
+                old_state, new_state, pending_state = message.parse_state_changed()
+                log.debug(f'* pipeline [{message.src.name}] state changed to {Gst.Element.state_get_name(new_state)}')
+                log.debug(f'* pipeline [{message.src.name}] state changed to {Gst.Element.state_get_name(new_state)}')
+                if new_state == Gst.State.PAUSED and message.src.get_name() == 'decoding':
+                    decoder = self.decoding_pipeline.get_by_name('decoder')
+                    caps = decoder.srcpads[0].get_current_caps()
+                    params = caps.get_structure(0)
+                    self.decoder_sample_rate = params.get_value('rate')
+                    self.decoder_channels = params.get_value('channels')
 
     def cutter_message(self, bus, message):
         try:
@@ -119,8 +155,34 @@ class Pipeline(util.Base):
         except Exception as e:
             log.critical('[%s] parsing cutter message gave "%s"' % (self.name, str(e)))
 
-    def get_pipeline_volume(self, channel, realtime):
-        if realtime:
+    def add_silence(self, audio_bytes):
+        audio = bytes(audio_bytes)
+
+        with self.silence_lock:
+            buf = Gst.Buffer.new_allocate(None, len(audio), None)
+            buf.fill(0, audio)
+            self.filter_src.emit('push-buffer', buf)
+            self.silence_bytes_added += audio_bytes
+
+    def enough_data_message(self, _):
+        """ When the first enough-data is received the pipeline is buffered according to the 'buffersize'
+            from the server configuration. Disconnect from the enough-data signal and connect to need-data
+            instead.
+        """
+        self.filter_src.disconnect(self.enough_data_handle)
+        self.filter_src.connect('need-data', self.need_data_message)
+        self.emit('buffered')
+
+    def need_data_message(self, _, bytes_needed):
+        """ For whatever reason then the pipeline is running out of data. Insert silence to keep playing in
+            sync with the pipeline clock. Ideally this should never get called.
+        """
+        if bytes_needed < 16384:
+            bytes_needed = 16384
+        self.add_silence(bytes_needed)
+
+    def get_pipeline_volume(self, channel):
+        if self.realtime:
             return self.local_cec_volume
         else:
             return self.remote_streaming_volumes[int(channel)]
@@ -137,30 +199,103 @@ class Pipeline(util.Base):
             return 'audioconvert ! audio/x-raw,channels=1,channel-mask=(bitmask)%02x !' % mask
         return ''
 
-    def construct_pipeline(self, realtime=False):
-        if self.pipeline:
-            self.pipeline.set_state(Gst.State.NULL)
+    def new_audio(self, audio):
+        # if the server issued a stop due to a starvation restart then this is a good
+        # time to construct a new pipeline
+        if not self.decoding_pipeline or not self.decoding_src:
+            self.realtime = False
+            self.start_pipelines()
+
+        if self.log_first_audio:
+            self.log_first_audio -= 1
+            log.debug('received %i bytes audio (%i)' % (len(audio), self.log_first_audio))
+
+        if audio:
+            with self.silence_lock:
+                buf = Gst.Buffer.new_allocate(None, len(audio), None)
+                buf.fill(0, audio)
+                self.decoding_src.emit('push-buffer', buf)
+
+    def decoder_new_sample(self, sink):
+        if self.filter_src:
+            sample = sink.emit("pull-sample")
+            buffer = sample.get_buffer()
+            self.filter_src.emit('push-buffer', buffer)
+        return Gst.FlowReturn.OK
+
+    """ Long story short: There are two pipelines, one that do the decoding and a pcm filter pipeline doing the 
+        filtering etc. This is a desperate attempt to be able to get need data signals and being able to inject
+        pcm silence when trying to align multiple channels. What should be here instead is a single pipeline and
+        a way to inject pcm (silence) at will somewhere inside it. Dunno how to do that. 
+    """
+
+    def construct_decoding_pipeline(self):
+        if self.decoding_pipeline:
+            self.decoding_pipeline.set_state(Gst.State.NULL)
+
+        self.decoder_sample_rate = None
+        self.decoder_channels = None
 
         if self.codec == 'sbc':
-            decoding = 'sbcparse ! sbcdec !'
-            self.current_buffer_size = self.default_buffer_size
+            decoder = 'sbcparse ! sbcdec name=decoder '
             self.source_gain = 3.0
         elif self.codec == 'aac':
             # decoding = 'aacparse ! avdec_aac !'
-            decoding = 'decodebin !'
-            self.current_buffer_size = self.default_buffer_size
+            decoder = 'decodebin name=decoder'
             self.source_gain = 0.5
         elif self.codec == 'aac_adts':
             # audio generated with gstreamer "faac ! aacparse ! avmux_adts"
-            decoding = 'decodebin !'
-            self.current_buffer_size = self.default_buffer_size
+            decoder = 'decodebin name=decoder'
             self.source_gain = 0.5
         elif self.codec == 'pcm':
-            self.current_buffer_size = 200000
-            decoding = 'decodebin !'
+            decoder = 'wavpackparse name=decoder ! wavpackdec ! audioconvert'
             self.source_gain = 1.0
         else:
             log.critical("unknown codec '%s'" % self.codec)
+
+        log.info(f'constructing decoder pipeline ({decoder})')
+
+        try:
+            self.stereo = len(self.channel_list) == 2
+
+            if self.stereo:
+                pipeline = (
+                    f'appsrc name=decoder_src is-live=true ! {decoder} ! '
+                    'audioconvert ! audio/x-raw,format=F32LE,channels=2 ! '
+                    'deinterleave name=d '
+                    'appsink name=decoder_sink emit-signals=true sync=false')
+
+            else:
+                channel = self.channel_list[0]
+                pipeline = (
+                    f'appsrc name=decoder_src emit-signals=true ! {decoder} ! '
+                    'audioconvert ! audio/x-raw,format=F32LE,channels=2,layout=interleaved ! '
+                    f'deinterleave name=d d.src_{channel} ! '
+                    'appsink name=decoder_sink emit-signals=true sync=false')
+
+            self.decoding_pipeline = Gst.parse_launch(pipeline)
+            self.decoding_pipeline.set_name('decoding')
+
+            self.decoding_src = self.decoding_pipeline.get_by_name('decoder_src')
+            self.decoding_sink = self.decoding_pipeline.get_by_name('decoder_sink')
+            self.decoding_sink.connect('new-sample', self.decoder_new_sample)
+
+            bus = self.decoding_pipeline.get_bus()
+            bus.add_signal_watch()
+            bus.enable_sync_message_emission()
+            bus.connect('message', self.bus_message)
+
+            self.decoding_pipeline.set_state(Gst.State.PLAYING)
+
+        except Exception as e:
+            log.critical("couldn't construct decoding pipeline, %s" % str(e))
+            raise e
+
+    def construct_filter_pipeline(self):
+        if self.filter_pipeline:
+            self.filter_pipeline.set_state(Gst.State.NULL)
+
+        self.silence_bytes_added = 0
 
         try:
             lo, hi = self.calculate_highlowbalance(self.highlowbalance)
@@ -170,19 +305,34 @@ class Pipeline(util.Base):
             if self.stereo_enhance_enabled:
                 stereo_enhance_element = 'audioconvert ! stereo stereo=%f ! ' % self.stereo_enhance_depth
 
-            if realtime:
+            if self.realtime:
                 pipeline = (
                     'alsasrc device=hw:0 ! '
                     'cutter name=cutter leaky=false run-length=%i threshold-dB=%f ! '
                     'audioconvert ! audio/x-raw,format=F32LE,channels=2 ! queue ! deinterleave name=d ' %
                     (self.noise_gate_duration_secs * util.NS_IN_SEC, self.noise_gate_level_db))
-                buffer_time = 100
+                alsa_buffer_time = 100
             else:
+                min_percentage_target_bytes = 4096
+                min_percent = int((100 * min_percentage_target_bytes) / self.filter_buffer_size)
+                if min_percent < 10:
+                    min_percent = 10
+                elif min_percent > 80:
+                    min_percent = 80
+
+                log.debug(f'buffer target: {self.filter_buffer_size} bytes, '
+                          f'low threshold={min_percentage_target_bytes} bytes ({min_percent}%)')
+
                 pipeline = (
-                    'appsrc name=audiosource emit-signals=true max-bytes=%i ! %s %s '
-                    'audioconvert ! audio/x-raw,format=F32LE,channels=2 ! queue ! deinterleave name=d ' %
-                    (self.current_buffer_size, decoding, stereo_enhance_element))
-                buffer_time = 200000
+                    f'appsrc name=filter_src emit-signals=true max-bytes={self.filter_buffer_size} '
+                    f'min-percent={min_percent} format=GST_FORMAT_TIME ! {stereo_enhance_element} '
+                    'audio/x-raw,format=F32LE,channels=1,rate=44100 ! '
+                    'queue max-size-bytes=1024 ! ')
+
+                if self.stereo:
+                    pipeline += 'deinterleave name = d ! '
+
+                alsa_buffer_time = self.filter_alsa_buffer_ms
 
             for channel in self.channel_list:
 
@@ -206,69 +356,80 @@ class Pipeline(util.Base):
                     log.error('equalizer setup failed with %s' % str(e))
                     eq_setup = ''
 
+                if self.stereo:
+                    pipeline += f'd.src_{channel} ! '
+
                 pipeline += (
-                    'd.src_%s ! tee name=t%s '
+                    'tee name=t%s '
 
                     'interleave name=i%s ! capssetter caps = audio/x-raw,channels=2,channel-mask=0x3 ! '
-                    'audioconvert ! audioresample ! queue name=lastqueue%s max-size-time=20000000000 ! '
-                    'volume name=vol%s volume=%f ! alsasink sync=true %s buffer-time=%d '
+                    'audioconvert ! audioresample ! queue max-size-bytes=1024 ! '
+                    'volume name=vol%s volume=%f ! alsasink name=alsasink sync=true %s buffer-time=%d '
 
-                    't%s.src_0 ! queue ! audiocheblimit poles=%i name=lowpass%s mode=low-pass cutoff=%f ! '
+                    't%s.src_0 ! queue max-size-bytes=1024 ! '
+                    'audiocheblimit poles=%i name=lowpass%s mode=low-pass cutoff=%f ! '
                     '%s ! volume name=lowvol%s volume=%f ! %s i%s.sink_0 '
 
-                    't%s.src_1 ! queue ! audiocheblimit poles=%i name=highpass%s mode=high-pass cutoff=%f ! '
+                    't%s.src_1 ! queue max-size-bytes=1024 ! '
+                    'audiocheblimit poles=%i name=highpass%s mode=high-pass cutoff=%f ! '
                     'volume name=highvol%s volume=%f ! %s i%s.sink_1 ' %
-                    (channel, channel,
+                    (channel,
                      channel,
-                     channel,
-                     channel, self.get_pipeline_volume(int(channel), realtime), alsa_device, buffer_time,
+                     channel, self.get_pipeline_volume(int(channel)), alsa_device, alsa_buffer_time,
                      channel, self.xoverpoles, channel, self.xoverfreq, eq_setup, channel, lo, lo_mask, channel,
                      channel, self.xoverpoles, channel, self.xoverfreq, channel, hi, hi_mask, channel))
 
             # print(pipeline)
 
-            if realtime:
-                log.info('launching pipeline (local realtime alsa)')
+            if self.realtime:
+                log.info('constructing filter pipeline (local realtime)')
             else:
-                log.info('launching pipeline (server audio stream)')
+                log.info('constructing filter pipeline (server stream)')
 
-            self.pipeline = Gst.parse_launch(pipeline)
-            if realtime:
-                self.appsrc_element = None
+            self.filter_pipeline = Gst.parse_launch(pipeline)
+            self.filter_pipeline.set_name('processing')
+
+            if self.realtime:
+                self.filter_src = None
             else:
-                self.appsrc_element = self.pipeline.get_by_name('audiosource')
+                self.filter_src = self.filter_pipeline.get_by_name('filter_src')
+                self.enough_data_handle = self.filter_src.connect('enough-data', self.enough_data_message)
 
-            self.last_queue = self.pipeline.get_by_name('lastqueue' + self.channel_list[0])
-
-            bus = self.pipeline.get_bus()
+            bus = self.filter_pipeline.get_bus()
             bus.add_signal_watch()
             bus.enable_sync_message_emission()
             bus.connect('message', self.bus_message)
 
-            self.pipeline.set_state(Gst.State.PAUSED)
-            if realtime:
+            self.filter_pipeline.set_state(Gst.State.PAUSED)
+            if self.realtime:
                 bus.connect('message::element', self.cutter_message)
 
         except Exception as e:
             log.critical("couldn't construct pipeline, %s" % str(e))
+            raise e
+
+    def start_pipelines(self):
+        self.construct_decoding_pipeline()
+        self.construct_filter_pipeline()
 
     def construct_and_start_local_pipeline(self):
-        self.construct_pipeline(realtime=True)
-        self.pipeline.set_state(Gst.State.PLAYING)
+        self.realtime = True
+        self.start_pipelines()
+        self.filter_pipeline.set_state(Gst.State.PLAYING)
 
     def stop_pipeline(self):
-        if self.pipeline:
+        if self.filter_pipeline:
             # log.warning('writing pipeline dot file')
             # Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, 'ludit_client')
-            self.pipeline.set_state(Gst.State.NULL)
-            self.pipeline = None
+            self.filter_pipeline.set_state(Gst.State.NULL)
+            self.filter_pipeline = None
 
     def set_volume(self, volume, local_cec=False):
         if local_cec:
-            if self.pipeline:
+            if self.filter_pipeline:
                 log.debug('local cec volume %.3f' % volume)
                 for channel in self.channel_list:
-                    volume_element = self.pipeline.get_by_name('vol%s' % channel)
+                    volume_element = self.filter_pipeline.get_by_name('vol%s' % channel)
                     volume_element.set_property('volume', volume)
         else:
             if volume is not None:
@@ -284,9 +445,9 @@ class Pipeline(util.Base):
 
                 channel_vol = max(0.0005, self.user_volume * self.source_gain * balance)
                 self.remote_streaming_volumes[channel_int] = channel_vol
-                if self.pipeline:
+                if self.filter_pipeline:
                     log.debug('channel %s volume %.3f' % (channel, channel_vol))
-                    volume_element = self.pipeline.get_by_name('vol%s' % channel)
+                    volume_element = self.filter_pipeline.get_by_name('vol%s' % channel)
                     volume_element.set_property('volume', channel_vol)
 
     def set_balance(self, balance):
@@ -310,7 +471,8 @@ class Pipeline(util.Base):
         if command == 'setcodec':
             self.codec = message['codec']
             log.info("setting codec to '%s'" % self.codec)
-            self.construct_pipeline()
+            self.realtime = False
+            self.start_pipelines()
 
         elif command == 'setvolume':
             volume = int(message['volume']) / 127.0
@@ -319,10 +481,7 @@ class Pipeline(util.Base):
 
         elif command == 'configure' or command == 'setparam':
             param = message['param']
-            if param == 'general':
-                self.configure_general(param['general'])
-            else:
-                self.set_pipeline_parameter(param)
+            self.set_pipeline_parameter(param)
 
         else:
             log.critical("got unknown server command '%s'" % command)
@@ -385,9 +544,9 @@ class Pipeline(util.Base):
                     if att:
                         self.eq_band_gain[band] = float(att)
                         log.debug('setting equalizer band %i to %f' % (band, self.eq_band_gain[band]))
-                        if self.pipeline:
+                        if self.filter_pipeline:
                             for channel in self.channel_list:
-                                eq = self.pipeline.get_by_name('equalizer' + channel)
+                                eq = self.filter_pipeline.get_by_name('equalizer' + channel)
                                 eq.set_property('band%i' % band, self.eq_band_gain[band])
 
         stereo_enhance = param.get('stereoenhance')
@@ -410,37 +569,44 @@ class Pipeline(util.Base):
                 lo, hi = self.calculate_highlowbalance(highlowbalance)
                 log.debug('setting high/low balance %.2f (low %.5f high %.5f)' %
                           (highlowbalance, lo, hi))
-                if self.pipeline:
+                if self.filter_pipeline:
                     for channel in self.channel_list:
-                        self.pipeline.get_by_name('highvol' + channel).set_property('volume', hi)
-                        self.pipeline.get_by_name('lowvol' + channel).set_property('volume', lo)
+                        self.filter_pipeline.get_by_name('highvol' + channel).set_property('volume', hi)
+                        self.filter_pipeline.get_by_name('lowvol' + channel).set_property('volume', lo)
 
             xoverfreq = xover.get('freq')
             if xoverfreq is not None:
                 log.debug('setting xover frequency %s' % xoverfreq)
                 self.xoverfreq = float(xoverfreq)
-                if self.pipeline:
+                if self.filter_pipeline:
                     for channel in self.channel_list:
-                        xlow = self.pipeline.get_by_name('lowpass' + channel)
+                        xlow = self.filter_pipeline.get_by_name('lowpass' + channel)
                         xlow.set_property('cutoff', self.xoverfreq)
-                        xhigh = self.pipeline.get_by_name('highpass' + channel)
+                        xhigh = self.filter_pipeline.get_by_name('highpass' + channel)
                         xhigh.set_property('cutoff', self.xoverfreq)
 
             xoverpoles = xover.get('poles')
             if xoverpoles:
                 log.debug('setting xover poles %s' % xoverpoles)
                 self.xoverpoles = int(xoverpoles)
-                if self.pipeline:
+                if self.filter_pipeline:
                     for channel in self.channel_list:
-                        xlow = self.pipeline.get_by_name('lowpass' + channel)
+                        xlow = self.filter_pipeline.get_by_name('lowpass' + channel)
                         xlow.set_property('poles', self.xoverpoles)
-                        xhigh = self.pipeline.get_by_name('highpass' + channel)
+                        xhigh = self.filter_pipeline.get_by_name('highpass' + channel)
                         xhigh.set_property('poles', self.xoverpoles)
 
-        buffersize = param.get('buffersize')
-        if buffersize is not None:
-            self.default_buffer_size = int(buffersize)
-            log.debug('setting buffersize %i' % self.default_buffer_size)
+        streaming = param.get('streaming')
+        if streaming:
+            encoded_buffersize = streaming.get('buffersize')
+            if encoded_buffersize is not None:
+                self.filter_buffer_size = encoded_buffersize
+                log.debug('setting buffersize ready threshold %i' % self.filter_buffer_size)
+
+            alsa_buffer_time = streaming.get('alsabuffertime_ms')
+            if alsa_buffer_time is not None:
+                self.filter_alsa_buffer_ms = alsa_buffer_time
+                log.debug(f'setting alsa buffer time to {self.filter_alsa_buffer_ms}ms')
 
         realtime = param.get('realtime')
         if realtime is not None and realtime.get('enabled') == 'true':
@@ -449,24 +615,9 @@ class Pipeline(util.Base):
             log.info('realtime mode enabled, threshold %.1f dB, duration %i secs' %
                      (self.noise_gate_level_db, self.noise_gate_duration_secs))
 
-    def new_audio(self, audio):
-        # if the server issued a stop due to a starvation restart then this is a good
-        # time to construct a new pipeline
-        if not self.pipeline or not self.appsrc_element:
-            self.construct_pipeline()
-
-        if self.log_first_audio:
-            self.log_first_audio -= 1
-            log.debug('received %i bytes audio (%i)' % (len(audio), self.log_first_audio))
-
-        if audio:
-            buf = Gst.Buffer.new_allocate(None, len(audio), None)
-            buf.fill(0, audio)
-            self.appsrc_element.emit('push-buffer', buf)
-
     def cec_callback(self, action):
         global high_volume, low_volume, cec_audio_control, muted
-        if not self.realtime_enabled():
+        if not self.realtime:
             return
         if action == 'vol_up' and low_volume < 10.0:
             self.cec_muted = False

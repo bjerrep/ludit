@@ -67,7 +67,10 @@ class Server(util.Threadbase):
                 log.info('loaded configuration %s' % self.configuration_file)
                 if version != util.CONFIG_VERSION:
                     util.die('expected configuration version %s but found version %s' % (util.CONFIG_VERSION, version))
-        except Exception:
+        except json.JSONDecodeError as e:
+            util.die(f'got fatal error loading configuration file "{e}"')
+        except Exception as e:
+            print(str(e))
             log.warning('no configuration file specified (--cfg), using template configuration')
             self.configuration = generate_config()
 
@@ -95,9 +98,14 @@ class Server(util.Threadbase):
         self.multicast.send(msg)
 
     def multicast_rx(self, message):
+        """
+        Multicast receive is used for the initial communication with a client. The client
+        will send 'get_server_socket' and will in return get a 'server_socket' containing
+        the address of the tcp socket it should connect to and use from now on.
+        """
         if self.terminated:
             return
-        device_id = "unknown"
+        device_id = 'unknown'
         try:
             command = message['command']
             if command == 'get_server_socket':
@@ -112,7 +120,7 @@ class Server(util.Threadbase):
                     self.multicast_tx('server_socket', device_id, 'endpoint', 'None')
                     return
                 endpoint = device.get_endpoint()
-                log.debug('sending tcp socket endpoint %s to device %s' % (str(endpoint), device_id))
+                log.info('[%s] connecting, sending tcp socket endpoint %s' % (device_id, str(endpoint)))
                 self.multicast_tx('server_socket', device_id, 'endpoint', str(endpoint))
         except Exception as e:
             log.error('connection failed from unknown device %s (%s)' % (device_id, str(e)))
@@ -153,11 +161,25 @@ class Server(util.Threadbase):
 
     def slot_message(self, message):
         command = message['command']
-        client = message['clientname']
+        client_name = message['clientname']
+
+        # Here all client 'time' messages are harvested but so far the only output is a log
+        # message. What is missing is how the server should convey general status like e.g.
+        # one or more clients having a wall clock too far off to make a playing system.
         if command == 'time':
+            here_time = message['local_time']
             client_time = float(message['epoch'])
-            log.info('[%s] time deviation is %.1f ms' %
-                     (client, (time.time() - client_time) * 1000.0))
+            diff = abs(here_time - client_time)
+            # Make a rough check of the apparent time difference between client and server.
+            # It contains the delays from two python scripts and the IP transit time so
+            # it makes no sense to be too picky.
+            txt = f'[{client_name}] epoch is {message["epoch"]} (offset {diff:.3f} sec)'
+            if diff < 0.1:
+                log.debug(txt)
+            else:
+                log.warning(txt)
+        else:
+            log.warning(f'unexpected command {command} from {client_name}')
 
     def launch_playsequencer(self):
         try:
@@ -167,6 +189,7 @@ class Server(util.Threadbase):
 
             self.play_sequencer = playsequencer.PlaySequencer(self.configuration)
             self.play_sequencer.connect('allgroupsdisconnected', self.all_groups_disconnected)
+            self.play_sequencer.connect('message', self.slot_message)
             self.cant_play_warning = 5
         except Exception as e:
             log.critical('playsequencer failed with %s' % str(e))
@@ -275,27 +298,36 @@ def generate_config():
         'groups': [kitchen_group, stereo_group],
         'streaming': {
             'audiotimeout': '5',
-            'playdelay': '0.5',
-            'buffersize': '200000'
+            'playdelay': 0.5,
+            'buffersize': 50000,
+            'low_buffer_handler': util.LowBufferHandler.starved.name,
+            'alsabuffertime_ms': 20
         },
         'sources': {
             'mopidy_ws_enabled': 'false',
             'mopidy_ws_address': util.local_ip(),
             'mopidy_ws_port': '6680',
             'mopidy_gst_port': '4666',
-            'gstreamer_port': '4665',
-            'ludit_websocket_port': '45658',
-            'audiominblocksize': '3000',
+            'ludit_websocket_port': 45658,
+            'audiominblocksize': 3000,
             'alsasource': {
-                'enabled': 'false',
-                'device': 'hw:0',
-                'timeout': '5.0',
-                'threshold_dB': '-40.0'
-            }
+                'enabled': False,
+                'device': 'hw:1',
+                'timeout': 5.0,
+                'threshold_dB': -40.0
+            },
+            'gstreamer': [
+                {
+                    'format': 'pcm',
+                    'enabled': True,
+                    'port': 4666,
+                    'samplerate': 48000
+                }
+            ]
         },
         'multicast': {
             'ip': util.multicast_ip,
-            'port': str(util.multicast_port)
+            'port': util.multicast_port
         }
     }
     return configuration

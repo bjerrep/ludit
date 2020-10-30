@@ -2,7 +2,7 @@ from common import util
 from server import device
 from common.log import logger as log
 from enum import Enum
-import threading
+import threading, time
 
 
 class State(Enum):
@@ -12,7 +12,7 @@ class State(Enum):
 
 
 class Group(util.Base):
-    signals = ('groupconnected', 'groupdisconnected', 'status')
+    signals = ('groupconnected', 'groupdisconnected', 'status', 'message')
 
     def __init__(self, jsn):
         self.devices = []
@@ -29,7 +29,7 @@ class Group(util.Base):
                 raise util.ColdstartException
             _device.connect('devicedisconnected', self.slot_device_disconnected)
             _device.connect('deviceconnected', self.slot_device_connected)
-            _device.connect('message', self.slot_message)
+            _device.connect('message', self.slot_device_message)
             complete_json = device_json.copy()
             complete_json.update(jsn)
             _device.set_param(complete_json)
@@ -55,9 +55,9 @@ class Group(util.Base):
     def get_devices(self):
         return self.devices
 
-    def start_playing(self, now):
-        play_delay = float(self.jsn['streaming']['playdelay'])
-        play_time = now + play_delay
+    def start_playing(self):
+        play_delay = self.jsn['streaming']['playdelay']
+        play_time = time.time() + play_delay
         self.send({'runtime': {'command': 'playing', 'playtime': str(play_time)}})
 
     def stop_playing(self):
@@ -86,13 +86,14 @@ class Group(util.Base):
         else:
             log.error('%s disconnected while not connected' % device.name())
 
-    def slot_message(self, msg):
+    def slot_device_message(self, msg):
         with self.lock:
             command = msg['command']
             clientname = msg['clientname']
             id = util.make_id(self.groupname, clientname)
-            if command == 'time':
-                log.debug("[%s] epoch is %s" % (id, msg['epoch']))
+            if command == 'time' or command == 'message':
+                msg['clientname'] = id
+                self.emit('message', msg)
             elif command == 'status':
                 state = msg['state']
                 for _device in self.connected_devices:

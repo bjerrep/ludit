@@ -92,9 +92,9 @@
         <h2>Commands</h2>
         <div class="m_setting_container"><div class="m_setting_area"><div class="m_setting_section"><div class="m_settings_item"><div class="m_settings_row"><div class="m_settings_table">
             <div class="m_settings_cell">
-                <input id="restart_all" name="restart_all" type="submit" value="Restart All"/>
-                <input id="restart_ludit" name="restart_ludit" type="submit" value="Restart Ludit"/>
-                <input id="reboot" name="reboot" type="submit" value="Reboot"/>
+                <input id="restart_all" name="restart_all" type="button" value="Restart All"/>
+                <input id="restart_ludit" name="restart_ludit" type="button" value="Restart Ludit"/>
+                <input id="reboot" name="reboot" type="button" value="Reboot"/>
             </div>
         </div></div></div></div></div></div>
 
@@ -251,7 +251,7 @@ $("#twitse_table_metrics").treetable({ expandable: true });
 
     print_responsives();
 
-    // -------------------------------------------
+    <!-- ------------------------------------------- -->
 
     var smoothie_chart = new SmoothieChart({
         responsive: true, millisPerPixel: ms_per_pixel,
@@ -279,7 +279,7 @@ $("#twitse_table_metrics").treetable({ expandable: true });
         { strokeStyle: "orange", fillStyle: "orange", lineWidth: 1 });
     max_delta_time_series.append(0, 0);
 
-    // -------------------------------------------
+    <!-- ------------------------------------------- -->
 
     update_channel_list();
 
@@ -417,7 +417,7 @@ $("#twitse_table_metrics").treetable({ expandable: true });
                 else if (command == "get_wifi_stats")
                     add_metric('network', 'wifi', from, result);
                 else if (command == "get_bluetooth_clients") {
-                    var metrics = JSON.parse(result); // cant handle multiple clients
+                    var metrics = JSON.parse(result); <!--  cant handle multiple clients -->
                     add_metric('bluetooth', 'clients', 'name', metrics['name']);
                     add_metric('bluetooth', 'clients', 'address', metrics['address']);
                     add_metric('bluetooth', 'clients', 'rssi', metrics['rssi']);
@@ -451,7 +451,7 @@ $("#twitse_table_metrics").treetable({ expandable: true });
                         vctcxo_prescale = 0;
                     }
                     index++;
-                    // fall throug
+                    <!-- fall through -->
             case 1: monitor_send({"command": "get_cputemperature", "group": "n/a"}); return;
             case 2: monitor_send({"command": "get_loadaverages", "group": "n/a"}); return;
             case 3: monitor_send({"command": "get_cpuload", "group": "n/a"}); return;
@@ -535,7 +535,7 @@ $("#twitse_table_metrics").treetable({ expandable: true });
         ludit_send({"command": "save_current_configuration"});
     }
 
-    // fails on android firefox
+    <!--  fails on android firefox -->
     var ro = new ResizeObserver( entries => {
             if (window._max_delta_chart && window._max_delta_chart.clientWidth > 0) {
             console.log('settimeout on start_max_delta_chart');

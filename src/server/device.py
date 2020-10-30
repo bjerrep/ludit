@@ -1,6 +1,7 @@
 from common.log import logger as log
 from common import util
 from server import server_socket
+import time
 
 
 class Device(util.Base):
@@ -41,6 +42,8 @@ class Device(util.Base):
             state = msg['state']
             if state in ('buffered', 'starved'):
                 self._state = state
+        if msg['command'] == 'time':
+            msg['local_time'] = time.time()
         self.emit('message', msg)
 
     def slot_connected(self):
