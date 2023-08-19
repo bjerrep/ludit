@@ -55,9 +55,7 @@ class Group(util.Base):
     def get_devices(self):
         return self.devices
 
-    def start_playing(self):
-        play_delay = self.jsn['streaming']['playdelay']
-        play_time = time.time() + play_delay
+    def start_playing(self, play_time):
         self.send({'runtime': {'command': 'playing', 'playtime': str(play_time)}})
 
     def stop_playing(self):

@@ -1,4 +1,4 @@
-from server import sourcefifo
+from server import sourcebluealsa
 from server import sourcetcp
 from server import sourcespotifyd
 from server import sourcemopidy
@@ -19,7 +19,7 @@ LOG_FIRST_AUDIO_COUNT = 5
 
 class InputMux(util.Threadbase):
     """
-    Hosts the sources (currently sourcefifo, sourcetcp and sourcespotifyd), listens to their events
+    Hosts the sources (currently sourcebluealsa, sourcetcp and sourcespotifyd), listens to their events
     and makes sure that the events passed on are sane. Implements the policy on what to do when
     multiple sources are playing at once.
     """
@@ -37,10 +37,13 @@ class InputMux(util.Threadbase):
         self.audio_buffer = bytearray()
 
         self.sources = []
-        _sourcefifo = sourcefifo.SourceFifo()
-        _sourcefifo.connect('event', self.source_event)
-        self.sources.append(_sourcefifo)
 
+        # udp server for encoded audio and signals from bluealsa (typ adts framed aac)
+        _sourcebluealsa = sourcebluealsa.SourceBlueALSA()
+        _sourcebluealsa.connect('event', self.source_event)
+        self.sources.append(_sourcebluealsa)
+
+        # gstreamer tcp source(s)
         for gst_source in source_config['gstreamer']:
             if gst_source['enabled']:
                 _sourcetcp = sourcetcp.SourceTCP(
@@ -50,6 +53,7 @@ class InputMux(util.Threadbase):
                 _sourcetcp.connect('event', self.source_event)
                 self.sources.append(_sourcetcp)
 
+        # mopidy tcp source
         _sourcespotifyd = sourcespotifyd.SourceSpotifyd()
         _sourcespotifyd.connect('event', self.source_event)
         self.sources.append(_sourcespotifyd)
@@ -118,11 +122,11 @@ class InputMux(util.Threadbase):
 
             if key == 'codec':
                 if self.now_playing:
-                    log.info('inputmux ditching current source "%s", new codec=%s' % (self.now_playing, value))
+                    log.info(f'inputmux ditching current source "{self.now_playing}", new codec={value}')
                     self.stop_playing()
                 self.now_playing = source
                 self.log_first_audio = LOG_FIRST_AUDIO_COUNT
-                log.info('inputmux starts playing source "%s"' % source)
+                log.info(f'inputmux starts playing source "{source}"')
                 self.audio_buffer = bytearray()
 
             if not self.now_playing or self.now_playing != source:
@@ -131,7 +135,7 @@ class InputMux(util.Threadbase):
             if key == 'audio':
                 if self.log_first_audio:
                     self.log_first_audio -= 1
-                    log.debug('audio %s bytes' % len(value))
+                    log.debug(f'audio {len(value)} bytes')
                 self.timeout_counter = self.timeout_preset_ticks
                 self.audio_buffer += value
                 if len(self.audio_buffer) < self.audiominblocksize:
@@ -139,9 +143,14 @@ class InputMux(util.Threadbase):
                 value = self.audio_buffer
                 self.audio_buffer = bytearray()
 
-            if key == 'state' and value == 'stop':
-                log.info('inputmux received stop from source "%s"' % source)
-                self.stop_playing()
+            if key == 'state':
+                if value == 'stop':
+                    log.info(f'inputmux received stop from source "{source}"')
+                    self.stop_playing()
+                else:
+                    log.warning(f'inputmux received unknown state "{value}" from source "{source}"')
+            elif key == 'flush':
+                pass
             else:
                 self.new_event(key, value)
 

@@ -1,17 +1,15 @@
-#!/bin/python
-
+import json
+import SimpleWebSocketServer
 from common import util
 from common.log import logger as log
-import json
-from SimpleWebSocketServer import WebSocket, SimpleWebSocketServer
 
 clients = []
 emitter = None
 
 
-class WebsocketClient(WebSocket):
+class WebsocketInterface(SimpleWebSocketServer.WebSocket):
+    emitter = None
     def handleMessage(self):
-        global emitter
         try:
             data = self.data
             log.debug('websocket message: %s' % data)
@@ -23,33 +21,32 @@ class WebsocketClient(WebSocket):
 
     def handleConnected(self):
         try:
-            log.info('new websocket connection from %s' % self.address[0])
+            log.info(f'new websocket connection from {self.address[0]}')
             clients.append(self)
             emitter.send_message(self, {'command': 'connected'})
         except Exception as e:
-            log.critical('exception in handleConnected: %s' % str(e))
+            log.critical('exception in handleConnected: {str(e)}')
 
     def handleClose(self):
         clients.remove(self)
-        log.debug('websocket connection from %s closed' % self.address[0])
+        log.debug('websocket connection from {self.address[0]} closed')
 
 
-class WebSocket(util.Threadbase):
+class WebSocketServer(util.Threadbase):
     signals = 'message'
 
-    def __init__(self, ip, port):
+    def __init__(self, ip, port, description):
         global emitter
-        super(WebSocket, self).__init__()
+        super(WebSocketServer, self).__init__()
         emitter = self
         port = port
-        log.info('starting websocket on %s:%i' % (ip, port))
-        self.server = SimpleWebSocketServer(ip, port, WebsocketClient)
+        log.info(f'starting websocket server {description} on {ip}:{port}')
+        self.server = SimpleWebSocketServer.SimpleWebSocketServer(ip, port, WebsocketInterface)
         self.start()
 
     def terminate(self):
         log.debug('terminating websocket')
         super().terminate()
-        self.server.close()
 
     @staticmethod
     def send_message(client, message_dict):
@@ -59,6 +56,10 @@ class WebSocket(util.Threadbase):
                 _client.sendMessage(_json)
 
     def run(self):
-        while not self.terminated:
-            self.server.serveonce()
+        try:
+            while not self.terminated:
+                self.server.serveonce()
+            self.server.close()
+        except Exception as e:
+            log.error(f'failed to start websocket: {str(e)}')
         log.debug('websocket exits')

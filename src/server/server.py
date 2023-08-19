@@ -3,10 +3,10 @@
 from common import util
 from common.log import logger as log
 from common import multicast
-from common import websocket
+from common import websocket_server, websocket_client
 from server import playsequencer
 from server import inputmux
-import time, traceback
+import traceback
 import signal
 import argparse
 import queue
@@ -28,7 +28,6 @@ class Server(util.Threadbase):
         self.load_configuration()
 
         self.play_sequencer = None
-        self.play_thread_active = True
         self.cant_play_warning = 5
         self.delayed_broadcast = None
 
@@ -44,8 +43,17 @@ class Server(util.Threadbase):
 
         self.multicast.connect('server_receive', self.multicast_rx)
 
-        self.ws = websocket.WebSocket(util.local_ip(), source_config['ludit_websocket_port'])
+        ws_port = source_config['ludit_websocket_port']
+        self.ws = websocket_server.WebSocketServer(util.local_ip(), ws_port, 'ludit_ws')
         self.ws.connect('message', self.websocket_rx)
+
+        try:
+            twitse_port = self.configuration["interfaces"]["twitse_websocket_port"]
+            self.twitse_ws_client = websocket_client.WebSocketClient(util.local_ip(), twitse_port, 'twitse')
+            self.twitse_ws_client.connect('message', self.websocket_twitse_rx)
+        except:
+            self.twitse_ws_client = None
+            log.debug('not connecting to twitse websocket')
 
         self.start()
 
@@ -53,6 +61,8 @@ class Server(util.Threadbase):
         log.debug('server terminate called')
         super().terminate()
         self.ws.terminate()
+        if self.twitse_ws_client:
+            self.twitse_ws_client.terminate()
         self.multicast.terminate()
         self.input_mux.terminate()
         if self.play_sequencer:
@@ -70,7 +80,6 @@ class Server(util.Threadbase):
         except json.JSONDecodeError as e:
             util.die(f'got fatal error loading configuration file "{e}"')
         except Exception as e:
-            print(str(e))
             log.warning('no configuration file specified (--cfg), using template configuration')
             self.configuration = generate_config()
 
@@ -87,7 +96,6 @@ class Server(util.Threadbase):
 
     def all_groups_disconnected(self):
         log.error('playsequenser reports that all groups (and devices) have disconnected')
-        self.play_thread_active = False
 
     def multicast_tx(self, command, device_id, key=None, value=None):
         msg = {'command': command,
@@ -146,6 +154,25 @@ class Server(util.Threadbase):
         if not self.delayed_broadcast:
             self.delayed_broadcast = threading.Timer(0.05, self.send_broadcast)
             self.delayed_broadcast.start()
+
+    def websocket_twitse_rx(self, message):
+        if self.terminated:
+            return
+        try:
+            command = message['command']
+
+            if command == 'device_lock_quality':
+                group, client = util.get_group_and_device_from_id(message['from'])
+                lock = message['lockstate']
+                quality = message['quality']
+
+                log.info(f'twitse client {group}:{client} quality:{quality}, lock:"{lock}"')
+                g = self.play_sequencer.get_group(group)
+                c = g.get_device(client)
+                c.send(message)
+        except Exception as e:
+            log.error(message)
+            raise e
 
     def send_broadcast(self):
         self.broadcast_new_configuration()
@@ -209,6 +236,8 @@ class Server(util.Threadbase):
                     self.play_sequencer.new_audio(value)
                 elif key == 'codec':
                     self.play_sequencer.set_codec(value)
+                elif key == 'samplerate':
+                    self.play_sequencer.set_samplerate(value)
                 elif key == 'state':
                     self.play_sequencer.set_state(value)
                 elif key == 'volume':
@@ -328,6 +357,9 @@ def generate_config():
         'multicast': {
             'ip': util.multicast_ip,
             'port': util.multicast_port
+        },
+        "interfaces": {
+            "twitse_websocket_port": 12343
         }
     }
     return configuration
@@ -339,7 +371,7 @@ def start():
     """
     try:
         parser = argparse.ArgumentParser('Ludit client')
-        parser.add_argument('--newcfg', action='store_true', dest='newcfg',
+        parser.add_argument('--dumpcfg', action='store_true', dest='dumpcfg',
                             help='dump template configuration file to stdout')
         parser.add_argument('--cfg', dest='cfg',
                             help='configuration file to use')
@@ -353,7 +385,7 @@ def start():
         if args.verbose:
             log.setLevel(logging.DEBUG)
 
-        if args.newcfg:
+        if args.dumpcfg:
             config = json.dumps(generate_config(), indent=4, sort_keys=True)
             print(config)
             exit(0)
@@ -362,7 +394,7 @@ def start():
             try:
                 print(' ctrl-c handler')
                 if _server:
-                    log.info('terminating by user')
+                    log.info('terminated by user')
                     _server.terminate()
                     log.debug('terminate done, waiting..')
                     _server.join()

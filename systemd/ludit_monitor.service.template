@@ -7,8 +7,13 @@ After=network-online.target
 Type=simple
 User=root
 WorkingDirectory=<git root>/src
-# For alternative ways to run the script under systemd see 'ludit_server.service.template'
+
+# Run as normally done
 ExecStart=/usr/bin/python <git root>/src/run_monitor.py
+
+# Run for debugging, run the monitor under screen. Use "screen -r ludit_monitor" to attach.
+# ExecStart=/usr/bin/screen -fn -L -DmS ludit_monitor sh -c '/usr/bin/python <git root>/src/run_monitor.py; exec /usr/bin/bash'
+
 Restart=on-failure
 
 [Install]

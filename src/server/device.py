@@ -71,3 +71,7 @@ class Device(util.Base):
         self.jsn.update(param)
         if self.connected:
             self.socket.send(param)
+
+    def send(self, message):
+        if self.connected:
+            self.socket.send(message)

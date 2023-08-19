@@ -129,6 +129,7 @@
                 <th>Value</th>
             </tr>
             </thead>
+            <tbody></tbody>
         </table>
 
         <h3>Commands:</h3>
@@ -136,7 +137,9 @@
             <input type="button" value="50us step response" onclick="CommandTransientTest();" >
         </p>
 
-        <div id="error"></div>
+        <h3>Log view:</h3>
+        <select size="5" id="messages" style="width: 500px;"></select>
+        
     </div>
 
 </div>
@@ -173,13 +176,27 @@ $("#twitse_table_metrics").treetable({ expandable: true });
     var smoothie_chart_max_delta = null;
     var max_delta_time_series = null;
     var _max_delta_chart = null;
-
+    
+    var system_table = $("#table_metrics")
+    
     try {
         let _ = ludit_setup['ludit']
     }
     catch(err) {
         alert("Missing or invalid file: 'ludit_local.js' not found. Make a local copy of 'ludit_local.js.template'");
     }
+    
+    
+    function message(text) {
+        if ($('#messages')[0].length > $('#messages')[0].size * 2) {
+            $('#messages').children("option")[0].remove();
+        }
+        $('#messages').append('<option>' + new Date().toLocaleTimeString() + ': ' + text + '</option>');
+        // this scrolls to the bottom unfortunately overruling any active user scrolling.
+        $('#messages')[0].scrollTop = $('#messages')[0].scrollHeight; 
+    }
+    
+    message("Log starting");
     
     class ChannelInfo {
         constructor(name, timeseries, color) {
@@ -231,14 +248,16 @@ $("#twitse_table_metrics").treetable({ expandable: true });
             var yoff = y + (i * lineheight);
             c.fillText(key, x1, yoff);
             c.fillText(channel_info.status, x2, yoff);
-            c.fillText(channel_info.lockstate, x3, yoff);
-            c.fillText(parseFloat(channel_info.loss).toFixed(1), x4, yoff);
-            var offset = offsets[key];
-            if (offset != 'undefined') {
-                c.fillText(parseFloat(offset).toFixed(1), x5, yoff);
+            if (key != 'server') {
+                c.fillText(channel_info.lockstate, x3, yoff);
+                c.fillText(parseFloat(channel_info.loss).toFixed(1), x4, yoff);
+                var offset = offsets[key];
+                if (offset != 'undefined') {
+                    c.fillText(parseFloat(offset).toFixed(1), x5, yoff);
+                }
+                c.fillText(parseFloat(channel_info.meanabsdev).toFixed(1), x6, yoff);
+                c.fillText(parseFloat(channel_info.rms).toFixed(1), x7, yoff);
             }
-            c.fillText(parseFloat(channel_info.meanabsdev).toFixed(1), x6, yoff);
-            c.fillText(parseFloat(channel_info.rms).toFixed(1), x7, yoff);
         }
     }
 
@@ -281,159 +300,168 @@ $("#twitse_table_metrics").treetable({ expandable: true });
 
     <!-- ------------------------------------------- -->
 
-    update_channel_list();
+    function new_channel_info(name) {
+        var time_series = new TimeSeries();
+        var color = colors[next_color++ % 6];
+        smoothie_chart.addTimeSeries(time_series, { strokeStyle: color, lineWidth: 3 });
+        channel_info = new ChannelInfo(name, time_series, color);
+        channel_info.status = "online";
+        channels[name] = channel_info;
+        return channel_info;
+    }
 
+    function delete_channel_info() {
+        channels = {};
+    }
+    
     ws_twitse = null;
 
-    function start_twitse(url) {
+    function start_twitse_websocket(url) {
+        next_color = 0;
+        ws_twitse = new WebSocket(url);
 
-        if (window["WebSocket"]) {
-            next_color = 0;
-            ws_twitse = new WebSocket(url);
+        ws_twitse.onmessage = function (e) {
+            var obj = JSON.parse(e.data);
+            var command = obj['command'];
+            var node = $("#twitse_table_metrics");
+            
+            var name = obj['from'];
+            var channel_info = channels[name];
+            if (channel_info === undefined) {
+                channel_info = new_channel_info(name);
+            }
 
-            ws_twitse.onmessage = function (e) {
-                var obj = JSON.parse(e.data);
-                var command = obj['command'];
+            if (command === "walloffset") {
+                add_metric(node, 'twitse', 'wall clock offset', 'server', obj['value']);
+                return;
+            }
 
-                if (command === "walloffset") {
-                    add_twitse_metric('twitse', 'wall clock offset', 'server', obj['value']);
-                    return;
+            if (command === "max_delta_offset_history") {
+                var time = JSON.parse(obj['time']);
+                var value = JSON.parse(obj['value']);
+                max_delta_time_series.clear();
+                for(var i=0; i < time.length; i++) {
+                    max_delta_time_series.append(time[i], value[i]);
                 }
-
-                if (command === "max_delta_offset_history") {
-                    var time = JSON.parse(obj['time']);
-                    var value = JSON.parse(obj['value']);
-                    max_delta_time_series.clear();
-                    for(var i=0; i < time.length; i++) {
-                        max_delta_time_series.append(time[i], value[i]);
-                    }
-                    add_twitse_metric('twitse', 'max delta offset graph', 'max average [us]', obj['mean_us'].toFixed(1));
-                    add_twitse_metric('twitse', 'max delta offset graph', 'max peak [us]', obj['peak_us'].toFixed(1));
+                add_metric(node, 'twitse', 'max delta offset graph', 'max average [us]', obj['mean_us'].toFixed(1));
+                add_metric(node, 'twitse', 'max delta offset graph', 'max peak [us]', obj['peak_us'].toFixed(1));
+            }
+            else if (command === "vctcxodac") {
+                add_metric(node, 'twitse', 'vctcxo dac', name, obj['value']);
+            }
+            else if (command === "max_delta_offset") {
+                max_delta_time_series.append(obj['time'], obj['value']);
+                add_metric(node, 'twitse', 'max delta offset graph', 'max average [us]', obj['mean_us'].toFixed(1));
+                add_metric(node, 'twitse', 'max delta offset graph', 'max peak [us]', obj['peak_us'].toFixed(1));
+            }
+            else if (command === "device_lock_quality") {
+                if (channel_info != undefined) {
+                    channel_info.lockstate = obj['lockstate']
+                    update_channel_list();
                 }
-                else if (command === "vctcxodac") {
-                    add_twitse_metric('twitse', 'vctcxo dac', obj['from'], obj['value']);
+                add_metric(node, 'twitse', 'lock level percent', name, obj['quality']);
+                add_metric(node, 'twitse', 'lock state', name, obj['lockstate']);
+            }
+            else {
+                if (command === "connection_info") {
+                    channel_info.loss = obj['loss']
+                    update_channel_list();
                 }
-                else if (command === "max_delta_offset") {
-                    max_delta_time_series.append(obj['time'], obj['value']);
-                    add_twitse_metric('twitse', 'max delta offset graph', 'max average [us]', obj['mean_us'].toFixed(1));
-                    add_twitse_metric('twitse', 'max delta offset graph', 'max peak [us]', obj['peak_us'].toFixed(1));
+                else if (command === "current_offset") {
+                    var time = obj['time'];
+                    var value = obj['value'];
+
+                    var time_series = channel_info.timeseries;
+                    time_series.append(parseInt(time), parseFloat(value));
+
+                    offsets[name] = value;
+                    channel_info.meanabsdev = obj['meanabsdev']
+                    channel_info.rms = obj['rms']
+                    update_channel_list();
                 }
-                else if (command === "device_lock_quality") {
-                    add_twitse_metric('twitse', 'lock level [0(worst)-11(best)]', obj['from'] , obj['value']);
-                }
-                else {
-                    var name = obj['name'];
-                    var channel_info = channels[name];
-
-                    if (channel_info === undefined) {
-                        var time_series = new TimeSeries();
-                        var color = colors[next_color++ % 6];
-                        smoothie_chart.addTimeSeries(time_series, { strokeStyle: color, lineWidth: 3 });
-                        channel_info = new ChannelInfo(name, time_series, color);
-                        channel_info.status = "online";
-                        channels[name] = channel_info;
-                    }
-
-                    if (command === "lockstateupdate") {
-                        channel_info.lockstate = obj['lockstate']
-                    }
-                    else if (command === "connection_info") {
-                        channel_info.loss = obj['loss']
-                    }
-                    else if (command === "current_offset") {
-                        var time = obj['time'];
-                        var value = obj['value'];
-
-                        var time_series = channel_info.timeseries;
-                        time_series.append(parseInt(time), parseFloat(value));
-
-                        offsets[name] = value;
-                        channel_info.meanabsdev = obj['meanabsdev']
-                        channel_info.rms = obj['rms']
-                        update_channel_list();
-                    }
-                }
-            };
-            ws_twitse.onclose = function (e) {
-                channels = {};
-                update_channel_list();
-                ws_twitse = null;
-            };
-            ws_twitse.onopen = function (e) {
-                console.log('twitse websocket connected');
-                twitse_send({"command": "get_history"});
-
-            };
-        } else {
-            $("#error").text("WebSocket init failed")
-        }
+            }
+        };
+        ws_twitse.onclose = function (e) {
+            channels = {};
+            delete_channel_info();
+            update_channel_list();
+            clear_metric_table($("#twitse_table_metrics tbody"));
+            ws_twitse = null;
+        };
+        ws_twitse.onopen = function (e) {
+            message("Twitse websocket connected");
+            twitse_send({"command": "get_history"});
+        };
+        ws_twitse.onerror = function (e) {
+            message("Error: Twitse websocket failed");
+            ws_twitse = null;
+        };
     }
 
     ws_ludit = null;
 
-    function start_ludit(url) {
-        if (window["WebSocket"]) {
-            ws_ludit = new WebSocket(url);
-            ws_ludit.onmessage = function (e) {
-                var obj = JSON.parse(e.data);
-                var command = obj['command'];
-                if (command == "configuration" && !no_configuration_reload) {
-                    ludit_saved_configuration = obj['current_conf'];
-                    reload_configuration();
-                }
-            };
-            ws_ludit.onclose = function (e) {
-                ws_ludit = null;
-            };
-            ws_ludit.onopen = function (e) {
-                console.log("ludit websocket connected");
-                ludit_send({"command": "get_configuration"});
-            };
-        } else {
-            $("#error").text("WebSocket init failed")
-        }
+    function start_ludit_websocket(url) {
+        ws_ludit = new WebSocket(url);
+        ws_ludit.onmessage = function (e) {
+            var obj = JSON.parse(e.data);
+            var command = obj['command'];
+            if (command == "configuration" && !no_configuration_reload) {
+                ludit_saved_configuration = obj['current_conf'];
+                reload_configuration();
+            }
+        };
+        ws_ludit.onclose = function (e) {
+            ws_ludit = null;
+        };
+        ws_ludit.onerror = function (e) {
+            message("Error: Ludit server websocket failed");
+        };
+        ws_ludit.onopen = function (e) {
+            message("Ludit server websocket connected");
+            ludit_send({"command": "get_configuration"});
+        };
     }
 
     ws_monitor = null;
 
-    function start_monitor(url) {
-        if (window["WebSocket"]) {
-            ws_monitor = new WebSocket(url);
-            ws_monitor.onmessage = function (e) {
-                var obj = JSON.parse(e.data);
-                var command = obj['command'];
-                var from = obj['from'];
-                var result = obj['result'];
-                if (command == "get_cputemperature")
-                    add_metric('temperature', 'cputemperature', from, result);
-                else if (command == "get_uptime")
-                    add_metric('computers', 'uptime', from, result);
-                else if (command == "get_loadaverages")
-                    add_metric('computers', 'loadaverages', from, result);
-                else if (command == "get_cpuload")
-                    add_metric('computers', 'cpuload', from, result);
-                else if (command == "get_ip")
-                    add_metric('network', 'ip', from, result);
-                else if (command == "get_wifi_stats")
-                    add_metric('network', 'wifi', from, result);
-                else if (command == "get_bluetooth_clients") {
-                    var metrics = JSON.parse(result); <!--  cant handle multiple clients -->
-                    add_metric('bluetooth', 'clients', 'name', metrics['name']);
-                    add_metric('bluetooth', 'clients', 'address', metrics['address']);
-                    add_metric('bluetooth', 'clients', 'rssi', metrics['rssi']);
-                }
-            };
-            ws_monitor.onclose = function (e) {
-                ws_monitor = null;
-            };
-            ws_monitor.onopen = function (e) {
-                console.log("ludit monitor connected");
-                monitor_metrics_refresh();
-                monitor_send({"command": "get_ip", "group": "n/a"});
-            };
-        } else {
-            $("#error").text("WebSocket init failed")
-        }
+    function start_monitor_websocket(url) {
+        ws_monitor = new WebSocket(url);
+        ws_monitor.onmessage = function (e) {
+            var obj = JSON.parse(e.data);
+            var command = obj['command'];
+            var from = obj['from'];
+            var result = obj['result'];
+            if (command == "get_cputemperature")
+                add_metric(system_table, 'temperature', 'cputemperature', from, result);
+            else if (command == "get_uptime")
+                add_metric(system_table, 'computers', 'uptime', from, result);
+            else if (command == "get_loadaverages")
+                add_metric(system_table, 'computers', 'loadaverages', from, result);
+            else if (command == "get_cpuload")
+                add_metric(system_table, 'computers', 'cpuload', from, result);
+            else if (command == "get_ip")
+                add_metric(system_table, 'network', 'ip', from, result);
+            else if (command == "get_wifi_stats")
+                add_metric(system_table, 'network', 'wifi', from, result);
+            else if (command == "get_bluetooth_clients") {
+                var metrics = JSON.parse(result); <!--  cant handle multiple clients -->
+                add_metric(system_table, 'bluetooth', 'clients', 'name', metrics['name']);
+                add_metric(system_table, 'bluetooth', 'clients', 'address', metrics['address']);
+                add_metric(system_table, 'bluetooth', 'clients', 'rssi', metrics['rssi']);
+            }
+        };
+        ws_monitor.onclose = function (e) {
+            ws_monitor = null;
+        };
+        ws_monitor.onopen = function (e) {
+            message("Ludit monitor websocket connected");
+            monitor_metrics_refresh();
+            monitor_send({"command": "get_ip", "group": "n/a"});
+        };
+        ws_monitor.onerror = function (e) {
+            message("Error: Ludit monitor websocket failed");
+        };
+
     }
 
     var interval = 100;
@@ -470,13 +498,13 @@ $("#twitse_table_metrics").treetable({ expandable: true });
 
     function check_websockets() {
         if (!ws_ludit) {
-            start_ludit(ws_url(ludit_setup["ludit"]["address"], ludit_setup["ludit"]["port"]));
+            start_ludit_websocket(ws_url(ludit_setup["ludit"]["address"], ludit_setup["ludit"]["port"]));
         }
         if (!ws_monitor) {
-            start_monitor(ws_url(ludit_setup["monitor"]["address"], ludit_setup["monitor"]["port"]));
+            start_monitor_websocket(ws_url(ludit_setup["monitor"]["address"], ludit_setup["monitor"]["port"]));
         }
         if (!ws_twitse) {
-            start_twitse(ws_url(ludit_setup["twitse"]["address"], ludit_setup["twitse"]["port"]));
+            start_twitse_websocket(ws_url(ludit_setup["twitse"]["address"], ludit_setup["twitse"]["port"]));
         }
     }
     setInterval(check_websockets, 10000);

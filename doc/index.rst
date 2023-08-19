@@ -21,7 +21,7 @@ Introduction
 
 Ludit is an audioplayer made for an wireless audio system using `Twitse <https://github.com/bjerrep/twitse/>`_ for time synchronisation. Ludit consists of a central wired server and seperate wireless stereo speakers where the server can act as e.g. a bluetooth A2DP headset for whatever music players that might run on whatever devices. Ludit does not have a music player app by itself.
 
-Ludit requires the involved computers to be in hardware time sync since Ludit does not know how to correct audio with regard to crystal drift. The Twitse project is at least one way to keep computers in full hardware time sync over a LAN.
+Ludit requires the involved computers to be in hardware time sync since Ludit does not know how to correct audio with regard to crystal drift. The Twitse project is at least one way to keep computers in full hardware time sync over a WLAN.
 
 Ludit is intended to get the best out of size constained loudspeakers in everyday setups. It is not too concerned about hifi but happily allows a heavy dose of electronic bass lift to get smaller loudspeakers play an acceptable bass on e.g. 3" or 4" bass drivers in 'small' (closed) enclosures. The price to pay is that Ludit speakers in such a setup are not really suited for playing insanely loud since the bass lift burns away quite some power used to battle the small enclosure without giving a equivivalent high sound pressure. But its nice to get the bass drum back. Obviously Ludit can just as well play through speakers that need no bass lift at all.
 

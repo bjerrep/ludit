@@ -1,3 +1,5 @@
+import time
+
 import bluetooth
 import select
 import json

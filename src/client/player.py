@@ -1,13 +1,15 @@
-from common.log import logger as log
-from common import util
-from client.pipeline import Pipeline, LOG_FIRST_AUDIO_COUNT
-import time
+import time, threading
 from enum import Enum
-import threading
+
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst
 
+from common.log import logger as log
+from common import util
+from client.pipeline import Pipeline, LOG_FIRST_AUDIO_COUNT
+
+#Gst.DebugLevel(Gst.DebugLevel.WARNING)
 
 class ServerAudioState(Enum):
     STOPPED = 1
@@ -20,9 +22,19 @@ class BufferState(Enum):
     MONITOR_SILENCE = 2
     MONITOR_BUFFERED = 3
 
+"""
+Event sequence for play start
+
+1. setcodec. Stops any active playing. Used by server input multiplexer to select next source.
+2. setsamplerate. The pipelines are constructed
+3. audio data starting 
+4. client sends 'buffered' to server
+5. server sends play start time
+"""
+
 
 class Player(util.Threadbase):
-    signals = ('status', 'message')
+    signals = ('status', 'message', 'device_lock_quality')
 
     buffer_state = BufferState.MONITOR_IDLE
     monitor_lock = threading.Lock()  # experimental
@@ -41,10 +53,10 @@ class Player(util.Threadbase):
     def __init__(self, configuration, hwctrl):
         super(Player, self).__init__('player')
         self.hwctrl = hwctrl
-        use_cec = configuration.get('cec') == 'true'
-        self.pipeline = Pipeline(use_cec)
+        self.pipeline = Pipeline()
         self.pipeline.connect('status', self.slot_pipeline_event)
         self.pipeline.connect('buffered', self.slot_pipeline_buffered)
+        self.pipeline.connect('device_lock_quality', self.slot_twitse_message)
         self.pipeline.set_pipeline_parameter(configuration)
         self.start()
 
@@ -57,6 +69,30 @@ class Player(util.Threadbase):
 
     def realtime_autostart(self):
         return self.pipeline.realtime_enabled() and self.playing
+
+    def check_play_time_sanity(self, play_time_ns):
+        """
+        :param play_time_ns: the wall clock at which playing should start
+        :return: False if the play time wasn't set
+        """
+        now_ns = time.time() * util.NS_IN_SEC
+
+        # If the server and client clocks are too far off then we might end up with a negative
+        # relative playing start time which gstreamer understandably refuses to accept. If this is
+        # the case then bail out now.
+        if play_time_ns <= now_ns:
+            log.critical('unable to start audio %3.1f seconds ago, server and client times are not in sync' %
+                         (now_ns - play_time_ns))
+            return False
+
+        # Another sign of clock mismatches will be a start time too far in the future.
+        # Currently it will be a relative start time more than 1 second from now.
+        # For now don't bail out on this one, just issue a log message.
+        if play_time_ns > now_ns + 1.0 * util.NS_IN_SEC:
+            log.error('will start audio in %3.1f seconds, server and client times are not in sync ?' %
+                         (now_ns - play_time_ns))
+
+        return True
 
     def process_server_runtime_message(self, runtime):
         command = runtime['command']
@@ -71,55 +107,16 @@ class Player(util.Threadbase):
             self.hwctrl.play(True)
 
         elif command == 'playing':
-            log.info(f'---- playing {self.pipeline.codec} '
-                     f'({self.pipeline.decoder_sample_rate}Hz '
-                     f'Channels:{self.pipeline.decoder_channels}) ----')
-
-            """
-            gstreamer has 3 time concepts:
-            running-time = absolute-time - base-time
-
-            running-time
-                the real time spent in playing state. Running from 0 for a non-live source as here.
-            absolute-time
-                the current value of the gst clock. It is always running (hardware based)
-            base-time
-                normally selected so that the running-time statement above is true
-                here the base time is set into the future since playing starts
-                when the running time >= 0
-            """
 
             play_time = float(runtime['playtime'])
             play_time_ns = play_time * util.NS_IN_SEC
 
-            # here the time precision is about to go out the window in the call to set_base_time in set_play_time().
-            # If and when we are preempted then the timing can be off in the millisecond range which is by any
-            # standards super awful.
-            # The loop is an attempt to get some kind of deterministic execution time.
+            if not self.check_play_time_sanity(play_time_ns):
+                log.error('playing command rejected, bad playtime argument')
 
-            target_time_us = 37.0  # found empirically on an overclocked rpi 3B+
-            target_window_us = 0.2
-
-            for i in range(151):
-                gst_setup_start = time.time()
-
-                if not self.pipeline.set_play_time(play_time_ns):
-                    return
-
-                gst_setup_elapsed_us = (time.time() - gst_setup_start) * 1000000
-
-                if target_time_us - i * target_window_us < gst_setup_elapsed_us < target_time_us + i * target_window_us:
-                    break
-
-            setup_message = 'time setup took %.3f us in %i tries' % (gst_setup_elapsed_us, i)
-            if i != 150:
-                log.info(setup_message)
-            else:
-                log.error(setup_message)
+            self.pipeline.set_play_time(play_time_ns)
 
             play_delay_ns = play_time_ns - time.time() * util.NS_IN_SEC
-
-            self.pipeline.delayed_start()
 
             self.server_audio_state = ServerAudioState.PLAYING
 
@@ -133,6 +130,8 @@ class Player(util.Threadbase):
             else:
                 log.error('playing will start in %.9f sec (thats a failed start)' % play_delay_secs)
 
+            self.last_status_time = time.time()
+
         elif command == 'stopping':
             log.info('---- stopping ----')
             self.hwctrl.play(False)
@@ -141,7 +140,7 @@ class Player(util.Threadbase):
             if self.realtime_autostart():
                 self.pipeline.construct_and_start_local_pipeline()
             else:
-                self.pipeline.stop_pipeline()
+                self.pipeline.stop()
             self.playing_start_time = None
             self.buffer_state = BufferState.MONITOR_IDLE
 
@@ -174,10 +173,9 @@ class Player(util.Threadbase):
                 self.playing = message['param']['general']['playing'] == 'true'
                 log.info('group currently selected for playing: %s' % self.playing)
                 if not self.playing:
-                    self.pipeline.stop_pipeline()
+                    self.pipeline.stop()
                 else:
                     self.nof_bps_messages = 10
-                    self.last_status_time = time.time()
             except:
                 pass
 
@@ -188,12 +186,20 @@ class Player(util.Threadbase):
                 self.pipeline.construct_and_start_local_pipeline()
 
     def print_stats(self):
+        """
+        Print the number of buffered samples and the playing time skew as the
+        difference between the elapsed wall clock and the playing time of the pipeline.
+        If the skew is positive the audio is played at a slower rate than it should
+        be. This is very interesting if it is experienced with everything running on
+        a single developer pc because this would mean that the gstreamer alsasink is
+        then clocked slightly too slow ? Or what ?
+        """
         try:
-            position, duration = self.pipeline.filter_pipeline.query_position(Gst.Format.TIME)
+            position, duration = self.pipeline.output_pipeline.query_position(Gst.Format.TIME)
             buffer_target, currently_buffered = self.pipeline.get_buffer_values()
             duration_secs = int(duration) / util.NS_IN_SEC
             playtime_skew = (time.time() - self.playing_start_time) - duration_secs
-            log.info("playing time %.3f sec, buffered %i bytes. Skew %.6f" %
+            log.info("playing time %.3f sec, buffered %i bytes. Skew %.6f sec" %
                      (duration_secs, currently_buffered, playtime_skew))
         except NameError:
             return True
@@ -217,7 +223,17 @@ class Player(util.Threadbase):
         log.info('pipeline is buffered')
         self.emit('status', 'buffered')
 
+    def slot_twitse_message(self, message):
+        self.emit('device_lock_quality', message)
+
     def new_audio(self, audio):
+        # Enable the ### lines for saving the audio to a file in order to verify that the
+        # encoded data stream is afterwards playable with a gstreamer pipeline, here for aac:
+        # gst-launch-1.0 filesrc location=client.codec ! aacparse ! faad ! alsasink
+        ### with open('client.codec', 'ab') as f:
+        ###     f.write(audio)
+        ### return
+
         self.pipeline.new_audio(audio)
         self.bytes_per_sec += len(audio)
 
@@ -250,8 +266,8 @@ class Player(util.Threadbase):
             while not self.terminated:
                 time.sleep(0.1)
 
-                if self.server_audio_state != ServerAudioState.STOPPED:
-                    self.pipeline_silence_monitor()
+                #if self.server_audio_state != ServerAudioState.STOPPED:
+                #    self.pipeline_silence_monitor()
 
                 if self.last_status_time and (time.time() - self.last_status_time > 2.0):
                     if self.playing_start_time and self.is_playing():

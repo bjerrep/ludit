@@ -31,8 +31,20 @@ Next the RPI's are overclocked. They are not exactly speed kings and they can us
 	
 	initramfs initramfs-linux.img followkernel
 
-(This is from an Arch installation)
-​		
-​	
 
+
+/boot/cmdline.txt
+
+
+
+Disable the 'audit' kernel logs:
+audit=0
+
+Watch for processes writing to disk:
+iotop -o -b -d 10
+
+
+
+(This is from an Arch installation)
+​
 

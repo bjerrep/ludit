@@ -29,7 +29,8 @@ Others
 connectable installable via pip::
 
     pip3 install connectable --upgrade
-    
+
+
 
 Client software installs
 *************************
@@ -42,4 +43,18 @@ Server software installs
 simple-websocket-server can be installed via pip::
 
     sudo pip install git+https://github.com/dpallot/simple-websocket-server.git
+
+
+
+Known problems
+***************
+
+Bluez exception using python 3.10 (seen on arch)
+ - SystemError: PY_SSIZE_T_CLEAN macro must be defined for '#' formats
+ - UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 4: invalid start byte
+
+Install pybluez from Blaok fork (after uninstalling whatever pybluez might already be installed)::
+
+    $ git clone https://github.com/Blaok/pybluez.git && cd pybluez
+    # python setup.py install
 

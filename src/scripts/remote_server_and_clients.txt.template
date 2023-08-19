@@ -1,2 +1,0 @@
-SERVER="user@hostname:/home/user/ludit"
-CLIENTS="user@hostname:/home/user/ludit user@hostname:/home/user/ludit user@hostname:/home/user/ludit ... etc"

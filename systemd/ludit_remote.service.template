@@ -10,8 +10,13 @@ WorkingDirectory=<git root>/src
 
 ExecStartPre=/usr/lib/systemd/systemd-networkd-wait-online --interface=wlan0 -o routable
 
-# For alternative ways to run the script under systemd see 'ludit_server.service.template'
+# Just run the script as a service. This is the normal thing to do. Systemd will restart the script in case it crashes.
 ExecStart=/usr/bin/python <git root>/src/run_remote.py --id <id>
+
+# Run inside screen which can be retrieved with "screen -r ludit_server". The screen does not exit in case the script crashes 
+# but keeps running for post mortem analysis.
+#ExecStart=/usr/bin/screen -fn -L -DmS ludit_remote sh -c '/usr/bin/python <git root>/src/run_remote.py --id <id>; exec /usr/bin/bash'
+
 Restart=on-failure
 
 [Install]

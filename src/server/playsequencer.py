@@ -16,7 +16,7 @@ class PlaySequencer(util.Threadbase):
     m_buffer_count = 0
     groups = {}
     connected_groups = []
-    silence_samples = 0
+    silence_samples = 0     #  silence is reported by individual clients and the server tries to get them all in sync
     silence_samples_pending = 0
     silence_samples_sent = 0
     development_audio_drop_prescaler = 100
@@ -104,6 +104,9 @@ class PlaySequencer(util.Threadbase):
     def set_codec(self, codec):
         self.send_to_groups({'command': 'setcodec', 'codec': codec})
 
+    def set_samplerate(self, samplerate):
+        self.send_to_groups({'command': 'setsamplerate', 'samplerate': samplerate})
+
     def set_volume(self, volume):
         self.send_to_groups({'command': 'setvolume', 'volume': volume})
 
@@ -132,6 +135,7 @@ class PlaySequencer(util.Threadbase):
             log.debug('state changing from %s to %s' % (self.m_state, new_state))
             self.m_state = new_state
             play_groups = self.playing_groups()
+            play_time = None
 
             for _group in play_groups:
                 if new_state == group.State.BUFFERING:
@@ -139,7 +143,11 @@ class PlaySequencer(util.Threadbase):
                 elif new_state == group.State.STOPPED:
                     _group.stop_playing()
                 elif new_state == group.State.PLAYING:
-                    _group.start_playing()
+                    if not play_time:
+                        # once picking a play time it should be the same for all groups
+                        play_delay = self.jsn['streaming']['playdelay']
+                        play_time = time.time() + play_delay
+                    _group.start_playing(play_time)
                 else:
                     log.critical('internal error #0082')
         else:

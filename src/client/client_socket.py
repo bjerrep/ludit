@@ -1,8 +1,7 @@
+import socket, time
 from common import util
 from common.log import logger as log
 from common import datapacket
-import socket
-import time
 
 
 class ClientSocket(util.Threadbase):
@@ -18,12 +17,12 @@ class ClientSocket(util.Threadbase):
 
     def send(self, packet):
         if self.connected:
-            if type(packet) == dict:
+            if isinstance(packet, dict):
                 packet = datapacket.pack_json(packet)
             self.socket.sendall(packet)
 
     def run(self):
-        log.debug('starting clientsocket at %s' % util.tcp2str(self.endpoint))
+        log.debug(f'starting clientsocket for server at {util.tcp2str(self.endpoint)}')
         log_waiting = True
         while not self.terminated:
             try:
@@ -38,16 +37,20 @@ class ClientSocket(util.Threadbase):
                         self.socket.settimeout(1.0)
                         self.connected = True
                         log_waiting = True
-                        log.info('connected to server at %s' % util.tcp2str(self.endpoint))
+                        log.info(f'connected to server at {util.tcp2str(self.endpoint)}')
                         self.emit('socket', 'open')
 
-                    except (TimeoutError, socket.timeout):
+                    except (TimeoutError, socket.timeout) as e:
                         if log_waiting:
                             log.info("waiting for server")
                             log_waiting = False
                         self.connected = False
                         time.sleep(1)
-                        raise util.ExpectedException
+                        raise util.ExpectedException from e
+                    except OSError as e:
+                        if e.errno == 113:
+                            log.error('got no route to host at ip broadcast by server. Has network changed ?')
+                        raise e
                     except Exception as e:
                         log.critical(self.name + str(e))
                         raise e
@@ -56,9 +59,9 @@ class ClientSocket(util.Threadbase):
                     blob = self.socket.recv(self.buffer_size)
                     rxdata = rxdata + blob
 
-                except ConnectionResetError:
-                    raise util.ClosedException
-                except socket.timeout:
+                except ConnectionResetError as e:
+                    raise util.ClosedException from e
+                except socket.timeout as e:
                     time.sleep(0.05)
                     raise util.ExpectedException
 

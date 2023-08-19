@@ -197,7 +197,7 @@ function insert_extended_html(group, index, type, serial, page) {
 }
 
 
-// Add a node to the 'metric' treetable or update an existing one
+// Add a node to the 'table' jquery treetable or update an existing one
 
 function add_node(root, sub, text, value, table) {
 
@@ -231,12 +231,14 @@ function add_node(root, sub, text, value, table) {
 	}
 }
 
-function add_metric(root, sub, text, value) {
-    add_node(root, sub, text, value, $("#table_metrics"));
+function add_metric(node, root, sub, text, value) {
+    add_node(root, sub, text, value, node);
 }
     
-function add_twitse_metric(root, sub, text, value) {
-    add_node(root, sub, text, value, $("#twitse_table_metrics"));
+function clear_metric_table(node) {
+	node.empty();
+	//node.html("");
+	//node.remo
 }
 
 function reload_configuration() {

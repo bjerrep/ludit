@@ -1,3 +1,5 @@
+import time
+
 from common.log import logger as log
 import socket
 import threading
@@ -53,6 +55,14 @@ def make_id(groupname, devicename):
     return "%s:%s" % (groupname, devicename)
 
 
+def get_group_and_device_from_id(id):
+    try:
+        return id.split(':')
+    except Exception as e:
+        log.critical(f'get_group_and_device_from_id from "{id}" failed with {e}')
+        raise e
+
+
 def split_tcp(tcp):
     """
     Converts an ipv4 udp/tcp ip endpoint string 'x.x.x.x:p' to a ('x.x.x.x', p) tuple
@@ -70,10 +80,32 @@ def tcp2str(tcp):
 
 # https://stackoverflow.com/a/23822431
 def local_ip():
+    """ raises exception on failure to get local ip address """
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     s.connect(('<broadcast>', 0))
     return s.getsockname()[0]
+
+
+def wait_for_network(timeout=60):
+    """ wait for a local ip to be defined and return it.
+        Return None if this doesn't happen before the timeout
+    """
+    seconds_waited = 0
+    while True:
+        try:
+            ip = local_ip()
+            if seconds_waited:
+                log.debug(f'network acquired after {seconds_waited} seconds')
+            return ip
+        except:
+            pass
+        time.sleep(1)
+        seconds_waited += 1
+        timeout -= 1
+        if not timeout:
+            log.warning(f'network timeout, waited {seconds_waited} seconds. Giving up')
+            return None
 
 
 def execute(command):

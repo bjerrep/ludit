@@ -1,18 +1,22 @@
 {
     "papower" : {
-        "pin":  14,
-        "active": true
+        "bcm":  25,
+        "active": "high",
+        "enabled": true
     },
-    "speaker" : {
-        "pin":  17,
-        "active": true
+    "speakerrelay" : {
+        "bcm":  15,
+        "active": "high",
+        "enabled": true
     },
-    "ledA" : {
-        "pin":  23,
-        "active": true
+    "led_red" : {
+        "bcm":  22,
+        "active": "high",
+        "enabled": true
     },
-    "ledB" : {
-        "pin":  22,
-        "active": true
+    "led_green" : {
+        "bcm":  23,
+        "active": "high",
+        "enabled": true
     }
 }

@@ -12,11 +12,11 @@ class SourceTCP(sourcebase.SourceBase):
     Hosts a gstreamer tcp server originally made for speaker testing with audio generated
     by gstreamer pipelines on the command line. It also opens up for the possibility
     for ludit to be the player backend for other audio systems/player frameworks but that
-    haven't been tried yet. Currently it hardcodes the codec type to be aac although the
-    payloads simply are forwarded as-is, there are no audio processing going on here.
+    haven't been tried yet. Currently it hardcodes the codec type to be aac and the samplerate
+    to 44.1 kHz although the  payloads simply are forwarded as-is, there are no audio
+    processing going on here.
     """
     signals = 'event'
-    #fixit samplerate is not needed ?
     def __init__(self, codec, samplerate, port, name='tcp'):
         """
         codec: 'pcm', 'aac_adts'
@@ -53,6 +53,7 @@ class SourceTCP(sourcebase.SourceBase):
                     log.debug('pipeline state changed to %s' % Gst.Element.state_get_name(new_state))
                     if new_state == Gst.State.PLAYING:
                         self.send_event('codec', self.codec)
+                        self.send_event('samplerate', '44100')
         except Exception as e:
             log.critical('[%s] parsing bus message gave %s' % (self.source_name(), str(e)))
 

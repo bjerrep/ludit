@@ -92,6 +92,14 @@ class Remote(util.Threadbase):
 
 
 def start():
+
+    # wait for the network to -really- get working
+    ip = util.wait_for_network()
+    if not ip:
+        log.critical('no network connection, exiting')
+        exit(1)
+    log.info(f'ludit remote starting at {ip}')
+
     parser = argparse.ArgumentParser('remote - monitor client')
     parser.add_argument('--id', action='store', dest='id',
                         help='unique identifier', required=True)

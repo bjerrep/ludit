@@ -1,9 +1,10 @@
+import socket, struct, json
+
 from common import util
 from common.log import logger as log
-import socket
-import struct
-import json
 
+# mtools at https://github.com/troglobit/mtools is handy for testing multicast from the cmd line
+# (add a "-1" to the handler_par.len argument in line 290 to avoid a trailing "\x00")
 
 class MulticastSocket(util.Threadbase):
     signals = 'socket_receive'
@@ -28,21 +29,25 @@ class MulticastSocket(util.Threadbase):
         self.socket.sendto(_json, self.multicast_group)
 
     def run(self):
-        try:
-            while not self.terminated:
-                try:
-                    data = self.socket.recv(1024)
-                except socket.timeout:
-                    continue
 
-                message = json.loads(data)
-                try:
-                    self.emit('socket_receive', message)
-                except Exception as e:
-                    log.critical('emit message failed with %s' % str(e))
-
-        except Exception as e:
-            log.critical('multicast got ' + str(e))
+        while not self.terminated:
+            try:
+                data = self.socket.recv(1024)
+            except socket.timeout:
+                continue
+            try:
+                message = json.loads(data.decode())
+            except json.JSONDecodeError as e:
+                log.critical(f'multicast rx got malformed json exception "{e}"')
+                continue
+            except Exception as e:
+                log.critical(f'multicast rx got exception "{e}"')
+                continue
+            try:
+                # note that what is sent is also received. Nothing is done to filter out that.
+                self.emit('socket_receive', message)
+            except Exception as e:
+                log.critical('emit message failed with %s' % str(e))
 
         self.socket.close()
         log.debug('multicast exits')
@@ -75,5 +80,7 @@ class Client(MulticastSocket):
         try:
             if message['to'] in (self.id, '*') or self.id == '*':
                 self.emit('client_receive', message)
+        except KeyError as e:
+            log.error(f'multicast client rx message invalid, missing {e} field')
         except Exception as e:
-            log.error('multicast client rx gave %s' % str(e))
+            log.error(f'multicast client rx gave exception {e}')

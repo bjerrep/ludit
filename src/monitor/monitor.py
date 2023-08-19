@@ -1,14 +1,12 @@
 #!/bin/python
 
+import time, signal, sys, argparse, logging
+from common import websocket_server
 from common import util
 from common.log import logger as log
 from common import multicast
-from common import websocket
 from monitor import metrics
 from monitor import bluetooth_metrics
-import time
-import signal
-import sys
 
 
 monitor_websocket_port = 45659
@@ -23,17 +21,19 @@ class Monitor(util.Threadbase):
         super(Monitor, self).__init__()
         self.multicast = multicast.Server(util.remote_multicast_ip, util.remote_multicast_port)
         self.multicast.connect('server_receive', self.multicast_rx)
-        self.ws = websocket.WebSocket(util.local_ip(), monitor_websocket_port)
+        self.ws = websocket_server.WebSocketServer(util.local_ip(), monitor_websocket_port, "monitor")
         self.ws.connect('message', self.websocket_rx)
         self.start()
         self.bt = bluetooth_metrics.BTDiscoverer()
         self.bt.connect('bt_client', self.bt_slot)
 
     def terminate(self):
+        log.debug('Monitor terminate enter')
         self.ws.terminate()
         self.multicast.terminate()
         self.multicast.join()
         super().terminate()
+        log.debug('Monitor terminate return')
 
     def service(self, action, name):
         log.info('%s %s' % (action, name))
@@ -45,7 +45,7 @@ class Monitor(util.Threadbase):
         client = message['from']
 
         log.debug('%s returns %s = %s' % (client, command, result))
-        websocket.WebSocket.send_message(None,
+        websocket_server.WebSocketServer.send_message(None,
                                          {'command': 'get_' + command,
                                           'from': client,
                                           'result': result})
@@ -71,7 +71,7 @@ class Monitor(util.Threadbase):
     @staticmethod
     def send_websocket_result(command, result):
         log.debug('server returns %s = %s' % (command, result))
-        websocket.WebSocket.send_message(None,
+        websocket_server.WebSocketServer.send_message(None,
                                          {'command': command,
                                           'from': 'server',
                                           'result': result})
@@ -142,6 +142,14 @@ def start():
             log.critical('ctrl-c handler got ' + str(e))
 
     signal.signal(signal.SIGINT, ctrl_c_handler)
+
+    parser = argparse.ArgumentParser('ludit monitor')
+    parser.add_argument('--verbose', action='store_true',
+                        help='enable more logging')
+    args = parser.parse_args()
+
+    if args.verbose:
+        log.setLevel(logging.DEBUG)
 
     _monitor = None
     _monitor = Monitor()

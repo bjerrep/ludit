@@ -4,14 +4,14 @@
 
 Ludit is the audio player for an audio system consisting of a wired raspberry pi server and wireless raspberry pi powered active stereo (as in two separate) speakers running with hard time synchronization.
 
-You probably don't want to know what that is all about. If all you are looking for a nice multi-room audio player with a proven track record and a lot of happy users then you should head over to e.g. [snapcast](https://github.com/badaix/snapcast). 
+You probably don't want to know what that is all about. If all you are looking for is a nice multi-room audio player with a proven track record and a lot of happy users then you should head over to e.g. [snapcast](https://github.com/badaix/snapcast). 
 
-The initial reason for the Ludit project was to see if it was possible to go wireless and replace normal speaker cables with either local short mains cables, or just thin uncritical power supply cables rather than speaker cables as with a normal power amplifier setup. 
+The initial reason for the Ludit project was to see if it was possible to go wireless in a stereo setup and replace normal speaker cables with either local short mains cables, or just thin uncritical power supply cables rather than speaker cables as with a normal power amplifier setup. 
 
-The expectation is that nobody else will actually construct a audio system like this. It requires a lot of work to get going, both with hardware and software, and there is no guarantee that it will be possible to  reproduce a system like this in good working order.
+The expectation is that nobody else will actually construct an audio system like this. It requires a lot of work to get going, both with hardware and software, and there is no guarantee that it will be possible to  reproduce a system like this in good working order.
 
 ## Hard time synchronization
-The 2 wireless raspberry pi computers are located in 2 separate right and left speakers in a stereo setup. Both rpi's are hardware modified and have their normal 19.2 MHz X1 xtal replaced with a VCTCXO, a voltage controlled crystal oscillator. These VCTCXO's are controlled with the [twitse](https://github.com/bjerrep/twitse) client/server software. With this running both wireless rpi's are synchronized to each other typically within some +/- 20-30 microseconds. And synchronized means exactly that since the processors, buses and what not on the rpi's are now running at the same speed and are continuously tracking each other. This is a non-compromise solution to the problem of crystal drift over time between two separate computers if they should be in sync down to the actual hardware. As a consequence this audio player therefore have no concept of sample skipping, package dropping, re-sampling or anything that would be needed for correcting drift between speakers. Which in turn is why this player is useless to most for playing wireless stereo.
+The 2 wireless raspberry pi computers are located in 2 separate right and left speakers in a stereo setup. Both rpi's are hardware modified and have their normal 19.2 MHz X1 crystal replaced with a VCTCXO, a voltage controlled crystal oscillator. These VCTCXO's are controlled with the [twitse](https://github.com/bjerrep/twitse) client/server software. With this running both wireless rpi's are synchronized to each other typically within some +/- 20-30 microseconds. And synchronized means exactly that since the processors, buses and what not on the rpi's are now running at the same speed and are continuously tracking each other. This is a non-compromise solution to the problem of crystal drift over time between two separate computers if they should be in sync down to the actual hardware. As a consequence this audio player therefore have no concept of sample skipping, package dropping, re-sampling or anything that would be needed for correcting drift between speakers. Which in turn is why this player is useless to most for playing wireless stereo.
 
 ## Bluetooth A2DP
 Ludit is intended to be invisible and out of the way for normal users. It can currently play one thing only, bluetooth A2DP. Most likely driven by e.g. Spotify on a mobile. (It does a lot of buffering and can not be used for realtime audio). The server hosts a bluetooth dongle and a [BlueALSA](https://github.com/Arkq/bluez-alsa) -> [fork](https://github.com/bjerrep/bluez-alsa) delivers encoded audio (sbc/aac) for the ludit server.
@@ -58,7 +58,7 @@ For more words there is a half-started documentation attempt [here](https://ludi
 
 ### Requirements
 
-Some of the requirements for the whole enterprise are python 3, the python libs [connectable](https://github.com/timothycrosley/connectable) & [simple-websocket-server](https://github.com/dpallot/simple-websocket-server) and last but not least, gstreamer. 
+Some of the requirements for the whole enterprise are python 3, the python libs [connectable](https://github.com/timothycrosley/connectable), SimpleWebSocketServer, websockets (all available via pip) and last but not least, gstreamer. 
 
 
 
